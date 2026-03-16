@@ -1,165 +1,550 @@
+import { useState } from 'react'
 import { useStats } from '../hooks/useStats'
 import Skeleton from '../components/Skeleton'
-import Badge from '../components/Badge'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  CartesianGrid, Legend,
+    BarChart, Bar, XAxis, YAxis, Tooltip,
+    ResponsiveContainer, CartesianGrid,
 } from 'recharts'
 
-const POSITIONS = ['Torwart','Innenverteidiger','Außenverteidiger','Defensives Mittelfeld',
-  'Zentrales Mittelfeld','Offensives Mittelfeld','Linksaußen','Rechtsaußen','Stürmer']
+const POSITIONS = [
+    'Torwart', 'Innenverteidiger', 'Außenverteidiger',
+    'Defensives Mittelfeld', 'Zentrales Mittelfeld', 'Offensives Mittelfeld',
+    'Linksaußen', 'Rechtsaußen', 'Stürmer',
+]
 
-export default function Stats() {
-  const { players, allPlayers, teamSummary, filter, setFilter, loading, exportCSV, exportPDF } = useStats()
+const POS_SHORT = {
+    'Torwart': 'TW', 'Innenverteidiger': 'IV', 'Außenverteidiger': 'AV',
+    'Defensives Mittelfeld': 'DM', 'Zentrales Mittelfeld': 'ZM',
+    'Offensives Mittelfeld': 'OM', 'Linksaußen': 'LA',
+    'Rechtsaußen': 'RA', 'Stürmer': 'ST',
+}
 
-  if (loading) return (
-    <div className="p-4 md:p-8 max-w-4xl space-y-4">
-      <Skeleton className="h-8 w-40" />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[1,2,3,4].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
-      </div>
-      <Skeleton className="h-64 rounded-2xl" />
-    </div>
-  )
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
+function fmt(v, fallback = 0) {
+    return v ?? fallback
+}
 
-  // Charts data
-  const topGoals    = [...allPlayers].sort((a,b) => (b.total_goals ?? 0)   - (a.total_goals ?? 0)).slice(0, 10)
-  const topAssists  = [...allPlayers].sort((a,b) => (b.total_assists ?? 0) - (a.total_assists ?? 0)).slice(0, 10)
-  const attendance  = [...allPlayers]
-    .filter(p => p.attendance_pct != null)
-    .sort((a,b) => (b.attendance_pct ?? 0) - (a.attendance_pct ?? 0))
-    .slice(0, 10)
+function ratingColor(v) {
+    if (v == null) return 'text-md-outline'
+    if (v >= 7) return 'text-green-600'
+    if (v >= 5) return 'text-amber-500'
+    return 'text-red-500'
+}
 
-  return (
-    <div className="p-4 md:p-8 max-w-4xl">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h1 className="text-xl font-medium text-md-on-surface">Berichte & Statistiken</h1>
-        <div className="flex gap-2">
-          <button onClick={exportCSV} className="btn-outlined py-2 px-3 text-xs">
-            <span className="material-symbols-outlined icon-sm">download</span>CSV
-          </button>
-          <button onClick={exportPDF} className="btn-outlined py-2 px-3 text-xs">
-            <span className="material-symbols-outlined icon-sm">picture_as_pdf</span>PDF
-          </button>
+function attendColor(v) {
+    if (v == null) return ''
+    if (v >= 75) return 'text-green-600'
+    if (v >= 50) return 'text-amber-600'
+    return 'text-red-500'
+}
+
+// ─────────────────────────────────────────────────────────────
+// Custom recharts tooltip
+// ─────────────────────────────────────────────────────────────
+function CustomTooltip({ active, payload, label, unit = '' }) {
+    if (!active || !payload?.length) return null
+    return (
+        <div className="bg-white border border-md-outline-variant rounded-xl px-3 py-2 shadow-lg text-xs">
+            <p className="font-semibold text-md-on-surface mb-1">{label}</p>
+            {payload.map(p => (
+                <p key={p.dataKey} style={{ color: p.fill }}>
+                    {p.name}: <span className="font-bold tabular-nums">{p.value}{unit}</span>
+                </p>
+            ))}
         </div>
-      </div>
+    )
+}
 
-      {/* Team summary */}
-      {teamSummary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          {[
-            { label: 'Spieler',    value: teamSummary.player_count },
-            { label: 'Trainings',  value: teamSummary.session_count },
-            { label: 'Spiele',     value: teamSummary.match_count },
-            { label: 'Verletzt',   value: teamSummary.active_injuries },
-          ].map(s => (
-            <div key={s.label} className="card-outlined p-4 text-center">
-              <p className="text-2xl font-medium text-md-on-surface">{s.value ?? 0}</p>
-              <p className="text-xs text-md-on-surface-variant mt-0.5">{s.label}</p>
+// ─────────────────────────────────────────────────────────────
+// Summary tile
+// ─────────────────────────────────────────────────────────────
+function Tile({ label, value, icon, sub }) {
+    return (
+        <div className="bg-white rounded-2xl border border-md-outline-variant/60 p-4">
+            <div className="w-8 h-8 rounded-xl bg-md-primary-container flex items-center justify-center mb-3">
+                <span className="material-symbols-outlined text-md-primary" style={{ fontSize: 16 }}>{icon}</span>
             </div>
-          ))}
+            <p
+                className="text-2xl font-black text-md-on-surface tabular-nums leading-none"
+                style={{ fontFamily: "'DM Mono', monospace" }}
+            >
+                {value ?? 0}
+            </p>
+            <p className="text-xs text-md-outline mt-1 font-medium">{label}</p>
+            {sub != null && (
+                <p className="text-xs text-md-outline/60 mt-0.5 tabular-nums" style={{ fontFamily: "'DM Mono', monospace" }}>
+                    {sub}
+                </p>
+            )}
         </div>
-      )}
+    )
+}
 
-      {/* Filters */}
-      <div className="flex gap-2 mb-4 flex-wrap">
-        <select value={filter.position} onChange={e => setFilter(f => ({ ...f, position: e.target.value }))}
-          className="text-sm rounded-xl border border-md-outline-variant bg-white px-3 py-2 focus:outline-none">
-          <option value="">Alle Positionen</option>
-          {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <div className="relative flex-1 min-w-40">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 icon-sm text-md-outline">search</span>
-          <input type="text" placeholder="Spieler suchen..." value={filter.player}
-            onChange={e => setFilter(f => ({ ...f, player: e.target.value }))}
-            className="w-full pl-9 pr-3 py-2 rounded-xl border border-md-outline-variant bg-white text-sm focus:outline-none focus:border-md-primary" />
-        </div>
-      </div>
+// ─────────────────────────────────────────────────────────────
+// Column header (sortable)
+// ─────────────────────────────────────────────────────────────
+function Th({ children, col, sortCol, sortDir, onSort, className = '' }) {
+    const active = sortCol === col
+    return (
+        <th
+            onClick={() => onSort(col)}
+            className={`py-3 font-bold text-md-outline uppercase tracking-wider cursor-pointer
+        select-none whitespace-nowrap transition-colors hover:text-md-on-surface
+        ${active ? 'text-md-primary' : ''} ${className}`}
+        >
+            <span className="inline-flex items-center gap-0.5">
+                {children}
+                {active && (
+                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>
+                        {sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward'}
+                    </span>
+                )}
+            </span>
+        </th>
+    )
+}
 
-      {/* Charts grid */}
-      <div className="grid md:grid-cols-2 gap-4 mb-6">
-        {/* Goals bar chart */}
-        <div className="card-outlined p-4">
-          <h3 className="text-sm font-medium text-md-on-surface mb-3">Top-Torschützen</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={topGoals} layout="vertical" margin={{ left: 60 }}>
-              <XAxis type="number" tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={60}
-                tickFormatter={v => v.split(' ').at(-1)} />
-              <Tooltip formatter={v => [`${v} Tore`]} />
-              <Bar dataKey="total_goals" fill="var(--md-primary)" radius={[0,4,4,0]} name="Tore" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+// ─────────────────────────────────────────────────────────────
+// Column group tab
+// ─────────────────────────────────────────────────────────────
+function ColTab({ id, label, active, onClick }) {
+    return (
+        <button
+            onClick={() => onClick(id)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all whitespace-nowrap
+        ${active
+                    ? 'bg-md-primary text-white border-md-primary shadow-sm'
+                    : 'border-md-outline-variant text-md-on-surface hover:bg-md-surface hover:border-md-primary/40'
+                }`}
+        >
+            {label}
+        </button>
+    )
+}
 
-        {/* Attendance bar chart */}
-        <div className="card-outlined p-4">
-          <h3 className="text-sm font-medium text-md-on-surface mb-3">Anwesenheitsrate</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={attendance} layout="vertical" margin={{ left: 60 }}>
-              <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={60}
-                tickFormatter={v => v.split(' ').at(-1)} />
-              <Tooltip formatter={v => [`${v}%`]} />
-              <Bar dataKey="attendance_pct" fill="#10b981" radius={[0,4,4,0]} name="Anwesenheit" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+// ─────────────────────────────────────────────────────────────
+// Column group definitions
+// Each group defines which columns are visible in the table.
+// ─────────────────────────────────────────────────────────────
+const COL_GROUPS = [
+    { id: 'spiele', label: '⚽ Spiele' },
+    { id: 'training', label: '🏃 Training' },
+    { id: 'rating', label: '★ Rating' },
+    { id: 'anwesen', label: '📋 Anwesenheit' },
+]
 
-      {/* Player stats table */}
-      <div className="card-outlined overflow-hidden">
-        <div className="px-4 py-3 border-b border-md-outline-variant flex items-center justify-between">
-          <h3 className="text-sm font-medium text-md-on-surface">Spielerstatistiken</h3>
-          <span className="text-xs text-md-outline">{players.length} Spieler</span>
+// ─────────────────────────────────────────────────────────────
+// Main component
+// ─────────────────────────────────────────────────────────────
+export default function Stats() {
+    const {
+        players, allPlayers, teamSummary,
+        filter, setFilter,
+        loading, exportCSV, exportPDF,
+    } = useStats()
+
+    const [colGroup, setColGroup] = useState('spiele')
+    const [sortCol, setSortCol] = useState('total_goals')
+    const [sortDir, setSortDir] = useState('desc')
+
+    if (loading) return (
+        <div className="p-4 md:p-8 max-w-5xl space-y-4">
+            <div className="flex items-center justify-between mb-2">
+                <Skeleton className="h-8 w-48" />
+                <div className="flex gap-2">
+                    <Skeleton className="h-9 w-20 rounded-xl" />
+                    <Skeleton className="h-9 w-20 rounded-xl" />
+                </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+                <Skeleton className="h-64 rounded-2xl" />
+                <Skeleton className="h-64 rounded-2xl" />
+            </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-md-outline-variant bg-md-surface">
-                <th className="text-left px-4 py-2.5 font-medium text-md-on-surface-variant whitespace-nowrap">Name</th>
-                <th className="text-right px-3 py-2.5 font-medium text-md-on-surface-variant">Sp</th>
-                <th className="text-right px-3 py-2.5 font-medium text-md-on-surface-variant">Min</th>
-                <th className="text-right px-3 py-2.5 font-medium text-md-on-surface-variant">T</th>
-                <th className="text-right px-3 py-2.5 font-medium text-md-on-surface-variant">A</th>
-                <th className="text-right px-3 py-2.5 font-medium text-md-on-surface-variant">Rating</th>
-                <th className="text-right px-3 py-2.5 font-medium text-md-on-surface-variant">Anw%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {players.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-8 text-md-on-surface-variant">Keine Daten</td></tr>
-              ) : players.map((p, i) => (
-                <tr key={p.id} className={`${i < players.length - 1 ? 'border-b border-md-outline-variant' : ''} hover:bg-md-surface`}>
-                  <td className="px-4 py-2.5">
-                    <div className="font-medium text-md-on-surface">{p.name}</div>
-                    {p.position && <div className="text-md-on-surface-variant">{p.position}</div>}
-                  </td>
-                  <td className="text-right px-3 py-2.5 text-md-on-surface">{p.matches_played ?? 0}</td>
-                  <td className="text-right px-3 py-2.5 text-md-on-surface">{p.total_minutes ?? 0}</td>
-                  <td className="text-right px-3 py-2.5 font-medium text-md-primary">{p.total_goals ?? 0}</td>
-                  <td className="text-right px-3 py-2.5 text-md-on-surface">{p.total_assists ?? 0}</td>
-                  <td className="text-right px-3 py-2.5">
-                    {p.avg_match_rating ? (
-                      <span className={`font-medium ${p.avg_match_rating >= 7 ? 'text-green-600' : p.avg_match_rating >= 5 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {p.avg_match_rating}★
-                      </span>
-                    ) : '–'}
-                  </td>
-                  <td className="text-right px-3 py-2.5">
-                    {p.attendance_pct != null ? (
-                      <Badge variant={p.attendance_pct >= 75 ? 'success' : p.attendance_pct >= 50 ? 'warning' : 'error'}>
-                        {p.attendance_pct}%
-                      </Badge>
-                    ) : '–'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    )
+
+    // ── Sort ─────────────────────────────────────────────────
+    function handleSort(col) {
+        if (sortCol === col) {
+            setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+        } else {
+            setSortCol(col)
+            setSortDir('desc')
+        }
+    }
+
+    const sorted = [...players].sort((a, b) => {
+        const av = a[sortCol] ?? -1
+        const bv = b[sortCol] ?? -1
+        return sortDir === 'desc' ? bv - av : av - bv
+    })
+
+    // ── Chart data ────────────────────────────────────────────
+    const topGoals = [...allPlayers]
+        .sort((a, b) => (b.total_goals ?? 0) - (a.total_goals ?? 0))
+        .slice(0, 8)
+
+    const topAttendMatch = [...allPlayers]
+        .filter(p => p.attendance_match_pct != null)
+        .sort((a, b) => (b.attendance_match_pct ?? 0) - (a.attendance_match_pct ?? 0))
+        .slice(0, 8)
+
+    // ── Summary tiles ─────────────────────────────────────────
+    const tiles = teamSummary ? [
+        { label: 'Spieler', value: teamSummary.player_count, icon: 'group' },
+        {
+            label: 'Spiele', value: teamSummary.match_count, icon: 'sports_soccer',
+            sub: `${teamSummary.total_match_minutes ?? 0} Min. gesamt`
+        },
+        {
+            label: 'Trainings', value: teamSummary.session_count, icon: 'fitness_center',
+            sub: `${teamSummary.total_training_minutes ?? 0} Min. gesamt`
+        },
+        { label: 'Tore gesamt', value: teamSummary.total_goals, icon: 'emoji_events' },
+        { label: 'Assists gesamt', value: teamSummary.total_assists, icon: 'handshake' },
+        {
+            label: 'Zu Null', value: teamSummary.clean_sheets, icon: 'shield',
+            sub: 'Team gesamt'
+        },
+        {
+            label: 'Ø Rating Spiel', value: teamSummary.avg_match_rating != null
+                ? `${teamSummary.avg_match_rating}★` : '–', icon: 'star'
+        },
+        { label: 'Verletzt', value: teamSummary.active_injuries, icon: 'healing' },
+    ] : []
+
+    return (
+        <div className="p-4 md:p-8 max-w-5xl">
+
+            {/* ── Header ── */}
+            <div className="flex items-start justify-between mb-5 gap-4 flex-wrap">
+                <div>
+                    <h1
+                        className="text-2xl font-bold text-md-on-surface tracking-tight"
+                        style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
+                    >
+                        Statistiken
+                    </h1>
+                    <p className="text-sm text-md-outline mt-0.5">
+                        {allPlayers.length} Spieler · Saison-Übersicht
+                    </p>
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={exportCSV} className="btn-outlined py-2 px-3 text-xs">
+                        <span className="material-symbols-outlined icon-sm">download</span>CSV
+                    </button>
+                    <button onClick={exportPDF} className="btn-outlined py-2 px-3 text-xs">
+                        <span className="material-symbols-outlined icon-sm">picture_as_pdf</span>PDF
+                    </button>
+                </div>
+            </div>
+
+            {/* ── Team summary tiles ── */}
+            {teamSummary && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                    {tiles.map(s => (
+                        <Tile key={s.label} label={s.label} value={s.value} icon={s.icon} sub={s.sub} />
+                    ))}
+                </div>
+            )}
+
+            {/* ── Filters ── */}
+            <div className="flex gap-2 mb-5 flex-wrap">
+                <select
+                    value={filter.position}
+                    onChange={e => setFilter(f => ({ ...f, position: e.target.value }))}
+                    className="text-sm rounded-xl border border-md-outline-variant bg-white px-3 py-2.5
+            focus:outline-none focus:border-md-primary"
+                >
+                    <option value="">Alle Positionen</option>
+                    {POSITIONS.map(p => (
+                        <option key={p} value={p}>{POS_SHORT[p]} · {p}</option>
+                    ))}
+                </select>
+                <div className="relative flex-1 min-w-44">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 icon-sm text-md-outline">
+                        search
+                    </span>
+                    <input
+                        type="text"
+                        placeholder="Spieler suchen…"
+                        value={filter.player}
+                        onChange={e => setFilter(f => ({ ...f, player: e.target.value }))}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-md-outline-variant bg-white text-sm
+              focus:outline-none focus:border-md-primary"
+                    />
+                </div>
+            </div>
+
+            {/* ── Charts ── */}
+            <div className="grid md:grid-cols-2 gap-4 mb-6">
+
+                {/* Top scorers */}
+                <div className="bg-white rounded-2xl border border-md-outline-variant/60 p-5">
+                    <h3
+                        className="text-sm font-bold text-md-on-surface mb-4"
+                        style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
+                    >
+                        Top-Torschützen
+                    </h3>
+                    {topGoals.length === 0 ? (
+                        <div className="h-40 flex items-center justify-center text-sm text-md-outline">Keine Daten</div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={topGoals} layout="vertical" margin={{ left: 56, right: 16, top: 0, bottom: 0 }}>
+                                <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }} axisLine={false} tickLine={false} />
+                                <YAxis
+                                    type="category" dataKey="name"
+                                    tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                    width={56} tickFormatter={v => v.split(' ').at(-1)}
+                                    axisLine={false} tickLine={false}
+                                />
+                                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,106,96,0.06)' }} />
+                                <Bar dataKey="total_goals" name="Tore" fill="var(--md-primary)"
+                                    radius={[0, 6, 6, 0]} maxBarSize={20} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+
+                {/* Match attendance */}
+                <div className="bg-white rounded-2xl border border-md-outline-variant/60 p-5">
+                    <h3
+                        className="text-sm font-bold text-md-on-surface mb-4"
+                        style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
+                    >
+                        Anwesenheit Spiele
+                    </h3>
+                    {topAttendMatch.length === 0 ? (
+                        <div className="h-40 flex items-center justify-center text-sm text-md-outline">Keine Daten</div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={topAttendMatch} layout="vertical" margin={{ left: 56, right: 16, top: 0, bottom: 0 }}>
+                                <XAxis
+                                    type="number" domain={[0, 100]}
+                                    tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                    unit="%" axisLine={false} tickLine={false}
+                                />
+                                <YAxis
+                                    type="category" dataKey="name"
+                                    tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                    width={56} tickFormatter={v => v.split(' ').at(-1)}
+                                    axisLine={false} tickLine={false}
+                                />
+                                <Tooltip content={<CustomTooltip unit="%" />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
+                                <Bar dataKey="attendance_match_pct" name="Anwesenheit" fill="#10b981"
+                                    radius={[0, 6, 6, 0]} maxBarSize={20} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+            </div>
+
+            {/* ── Player table ── */}
+            <div className="bg-white rounded-2xl border border-md-outline-variant/60 overflow-hidden">
+
+                {/* Table header + column group tabs */}
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-md-outline-variant/60 gap-3 flex-wrap">
+                    <h3
+                        className="text-sm font-bold text-md-on-surface shrink-0"
+                        style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
+                    >
+                        Spielerstatistiken
+                        <span className="ml-2 text-xs font-normal text-md-outline tabular-nums">
+                            {sorted.length} Spieler
+                        </span>
+                    </h3>
+                    <div className="flex gap-1.5 flex-wrap">
+                        {COL_GROUPS.map(g => (
+                            <ColTab
+                                key={g.id}
+                                id={g.id}
+                                label={g.label}
+                                active={colGroup === g.id}
+                                onClick={setColGroup}
+                            />
+                        ))}
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                        <thead>
+                            <tr className="border-b border-md-outline-variant/60 bg-md-surface/60">
+
+                                {/* Always-visible: name + position */}
+                                <Th
+                                    col="name"
+                                    sortCol={sortCol} sortDir={sortDir} onSort={handleSort}
+                                    className="text-left px-5"
+                                >
+                                    Spieler
+                                </Th>
+
+                                {/* ── Spiele ── */}
+                                {colGroup === 'spiele' && <>
+                                    <Th col="matches_played" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Sp.</Th>
+                                    <Th col="match_minutes" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Min.</Th>
+                                    <Th col="total_goals" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3 text-md-primary">Tore</Th>
+                                    <Th col="total_assists" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Ass.</Th>
+                                    <Th col="clean_sheets" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-4">Z.N.</Th>
+                                </>}
+
+                                {/* ── Training ── */}
+                                {colGroup === 'training' && <>
+                                    <Th col="sessions_attended" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Einh.</Th>
+                                    <Th col="training_minutes" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Min.</Th>
+                                </>}
+
+                                {/* ── Rating ── */}
+                                {colGroup === 'rating' && <>
+                                    <Th col="avg_match_rating" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Ø Spiel</Th>
+                                    <Th col="avg_training_rating" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-4">Ø Training</Th>
+                                </>}
+
+                                {/* ── Anwesenheit ── */}
+                                {colGroup === 'anwesen' && <>
+                                    <Th col="attendance_match_pct" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Spiele</Th>
+                                    <Th col="attendance_training_pct" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-4">Training</Th>
+                                </>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sorted.length === 0 ? (
+                                <tr>
+                                    <td colSpan={8} className="text-center py-12 text-sm text-md-outline">
+                                        Keine Daten
+                                    </td>
+                                </tr>
+                            ) : sorted.map((p, i) => (
+                                <tr
+                                    key={p.id}
+                                    className={`transition-colors hover:bg-md-surface/50
+                    ${i < sorted.length - 1 ? 'border-b border-md-outline-variant/50' : ''}`}
+                                >
+                                    {/* Name + position — always visible */}
+                                    <td className="px-5 py-3">
+                                        <div
+                                            className="font-semibold text-md-on-surface"
+                                            style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
+                                        >
+                                            {p.name}
+                                        </div>
+                                        {p.position && (
+                                            <div className="text-md-outline" style={{ fontSize: 10 }}>
+                                                {POS_SHORT[p.position] ?? p.position}
+                                            </div>
+                                        )}
+                                    </td>
+
+                                    {/* ── Spiele ── */}
+                                    {colGroup === 'spiele' && <>
+                                        <td className="text-right px-3 py-3 tabular-nums text-md-on-surface"
+                                            style={{ fontFamily: "'DM Mono', monospace" }}>
+                                            {fmt(p.matches_played)}
+                                        </td>
+                                        <td className="text-right px-3 py-3 tabular-nums text-md-outline"
+                                            style={{ fontFamily: "'DM Mono', monospace" }}>
+                                            {fmt(p.match_minutes)}
+                                        </td>
+                                        <td className="text-right px-3 py-3 tabular-nums font-bold text-md-primary"
+                                            style={{ fontFamily: "'DM Mono', monospace" }}>
+                                            {fmt(p.total_goals)}
+                                        </td>
+                                        <td className="text-right px-3 py-3 tabular-nums text-md-on-surface"
+                                            style={{ fontFamily: "'DM Mono', monospace" }}>
+                                            {fmt(p.total_assists)}
+                                        </td>
+                                        <td className="text-right px-4 py-3 tabular-nums text-md-on-surface"
+                                            style={{ fontFamily: "'DM Mono', monospace" }}>
+                                            {/* clean_sheets only relevant for TW, show dash for others */}
+                                            {POS_SHORT[p.position] === 'TW' || p.clean_sheets > 0
+                                                ? fmt(p.clean_sheets)
+                                                : <span className="text-md-outline/40">–</span>
+                                            }
+                                        </td>
+                                    </>}
+
+                                    {/* ── Training ── */}
+                                    {colGroup === 'training' && <>
+                                        <td className="text-right px-3 py-3 tabular-nums text-md-on-surface"
+                                            style={{ fontFamily: "'DM Mono', monospace" }}>
+                                            {fmt(p.sessions_attended)}
+                                        </td>
+                                        <td className="text-right px-4 py-3 tabular-nums text-md-outline"
+                                            style={{ fontFamily: "'DM Mono', monospace" }}>
+                                            {fmt(p.training_minutes)}
+                                        </td>
+                                    </>}
+
+                                    {/* ── Rating ── */}
+                                    {colGroup === 'rating' && <>
+                                        <td className="text-right px-3 py-3">
+                                            {p.avg_match_rating != null ? (
+                                                <span
+                                                    className={`font-bold tabular-nums ${ratingColor(p.avg_match_rating)}`}
+                                                    style={{ fontFamily: "'DM Mono', monospace" }}
+                                                >
+                                                    {p.avg_match_rating}★
+                                                </span>
+                                            ) : <span className="text-md-outline">–</span>}
+                                        </td>
+                                        <td className="text-right px-4 py-3">
+                                            {p.avg_training_rating != null ? (
+                                                <span
+                                                    className={`font-bold tabular-nums ${ratingColor(p.avg_training_rating)}`}
+                                                    style={{ fontFamily: "'DM Mono', monospace" }}
+                                                >
+                                                    {p.avg_training_rating}★
+                                                </span>
+                                            ) : <span className="text-md-outline">–</span>}
+                                        </td>
+                                    </>}
+
+                                    {/* ── Anwesenheit ── */}
+                                    {colGroup === 'anwesen' && <>
+                                        <td className="text-right px-3 py-3">
+                                            {p.attendance_match_pct != null ? (
+                                                <span
+                                                    className={`font-bold tabular-nums ${attendColor(p.attendance_match_pct)}`}
+                                                    style={{ fontFamily: "'DM Mono', monospace" }}
+                                                >
+                                                    {p.attendance_match_pct}%
+                                                </span>
+                                            ) : <span className="text-md-outline">–</span>}
+                                        </td>
+                                        <td className="text-right px-4 py-3">
+                                            {p.attendance_training_pct != null ? (
+                                                <span
+                                                    className={`font-bold tabular-nums ${attendColor(p.attendance_training_pct)}`}
+                                                    style={{ fontFamily: "'DM Mono', monospace" }}
+                                                >
+                                                    {p.attendance_training_pct}%
+                                                </span>
+                                            ) : <span className="text-md-outline">–</span>}
+                                        </td>
+                                    </>}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* ── Zu Null note ── */}
+                <div className="px-5 py-3 border-t border-md-outline-variant/40 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-md-outline" style={{ fontSize: 13 }}>info</span>
+                    <p className="text-xs text-md-outline">
+                        <span className="font-semibold">Z.N.</span> = Zu Null ·
+                        Wird über das Feld <code className="bg-md-surface px-1 py-0.5 rounded text-xs">clean_sheet</code> pro Spiel erfasst ·
+                        Nur für Torwarte hervorgehoben
+                    </p>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  )
+    )
 }

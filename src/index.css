@@ -4,192 +4,263 @@
 
 /* ── MD3 Design Tokens als CSS-Variablen ── */
 :root {
-  --md-primary:                #006A60;
-  --md-on-primary:             #FFFFFF;
-  --md-primary-container:      #9EF2E4;
-  --md-on-primary-container:   #00201C;
-  --md-secondary:              #4A6360;
-  --md-secondary-container:    #CCE8E4;
-  --md-surface:                #F4FBF9;
-  --md-surface-variant:        #DAE5E2;
-  --md-on-surface:             #161D1C;
-  --md-on-surface-variant:     #3F4948;
-  --md-outline:                #6F7978;
-  --md-outline-variant:        #BEC9C7;
-  --md-error:                  #BA1A1A;
-  --md-error-container:        #FFDAD6;
-  --md-on-error:               #FFFFFF;
+    --md-primary: #006A60;
+    --md-on-primary: #FFFFFF;
+    --md-primary-container: #9EF2E4;
+    --md-on-primary-container: #00201C;
+    --md-secondary: #4A6360;
+    --md-secondary-container: #CCE8E4;
+    --md-surface: #F4FBF9;
+    --md-surface-variant: #DAE5E2;
+    --md-on-surface: #161D1C;
+    --md-on-surface-variant: #3F4948;
+    --md-outline: #6F7978;
+    --md-outline-variant: #BEC9C7;
+    --md-error: #BA1A1A;
+    --md-error-container: #FFDAD6;
+    --md-on-error: #FFFFFF;
 }
 
 @layer base {
-  body {
-    background-color: var(--md-surface);
-    color: var(--md-on-surface);
-    font-family: 'Roboto', system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
+    body {
+        background-color: var(--md-surface);
+        color: var(--md-on-surface);
+        font-family: 'Roboto', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+    }
 
-  .material-symbols-outlined {
-    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-    font-size: 24px;
-    line-height: 1;
-    display: inline-block;
-    vertical-align: middle;
-    user-select: none;
-  }
-  .icon-sm  { font-size: 18px !important; }
-  .icon-lg  { font-size: 28px !important; }
-  .icon-filled { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        font-size: 24px;
+        line-height: 1;
+        display: inline-block;
+        vertical-align: middle;
+        user-select: none;
+    }
+
+    .icon-sm {
+        font-size: 18px !important;
+    }
+
+    .icon-lg {
+        font-size: 28px !important;
+    }
+
+    .icon-filled {
+        font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
 }
 
 @layer components {
-  /* ── Buttons ── */
-  .btn-filled {
-    @apply inline-flex items-center gap-2 px-6 py-2.5 rounded-xl
-           text-sm font-medium tracking-wide transition-all duration-200
-           hover:shadow-md active:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed;
-    background-color: var(--md-primary);
-    color: var(--md-on-primary);
-  }
-  .btn-tonal {
-    @apply inline-flex items-center gap-2 px-6 py-2.5 rounded-xl
-           text-sm font-medium tracking-wide transition-all duration-200
-           hover:shadow-sm active:opacity-80;
-    background-color: var(--md-secondary-container);
-    color: var(--md-on-primary-container);
-  }
-  .btn-outlined {
-    @apply inline-flex items-center gap-2 px-6 py-2.5 rounded-xl
-           text-sm font-medium tracking-wide transition-all duration-200
-           active:opacity-80;
-    border: 1px solid var(--md-outline);
-    color: var(--md-primary);
-  }
-  .btn-outlined:hover {
-    background-color: color-mix(in srgb, var(--md-primary) 8%, transparent);
-  }
-  .btn-text {
-    @apply inline-flex items-center gap-1.5 px-3 py-2 rounded-lg
-           text-sm font-medium tracking-wide transition-all duration-200
-           active:opacity-80;
-    color: var(--md-primary);
-  }
-  .btn-text:hover {
-    background-color: color-mix(in srgb, var(--md-primary) 8%, transparent);
-  }
-  .btn-icon {
-    @apply inline-flex items-center justify-center w-10 h-10 rounded-full
-           transition-all duration-200 active:opacity-80;
-    color: var(--md-on-surface-variant);
-  }
-  .btn-icon:hover {
-    background-color: color-mix(in srgb, var(--md-on-surface) 8%, transparent);
-  }
+    /* ── Buttons ── */
+    .btn-filled {
+        @apply inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium tracking-wide transition-all duration-200 hover:shadow-md active:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed;
+        background-color: var(--md-primary);
+        color: var(--md-on-primary);
+    }
 
-  /* ── Cards ── */
-  .card-elevated {
-    @apply bg-white rounded-xl overflow-hidden;
-    box-shadow: 0px 1px 2px rgba(0,0,0,0.3), 0px 1px 3px 1px rgba(0,0,0,0.15);
-  }
-  .card-filled {
-    @apply rounded-xl overflow-hidden;
-    background-color: var(--md-surface-variant);
-  }
-  .card-outlined {
-    @apply bg-white rounded-xl overflow-hidden;
-    border: 1px solid var(--md-outline-variant);
-  }
+    .btn-tonal {
+        @apply inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium tracking-wide transition-all duration-200 hover:shadow-sm active:opacity-80;
+        background-color: var(--md-secondary-container);
+        color: var(--md-on-primary-container);
+    }
 
-  /* ── Inputs ── */
-  .md-input {
-    @apply w-full px-4 pt-4 pb-2 text-sm bg-white
-           focus:outline-none transition-all;
-    border: 1px solid var(--md-outline);
-    border-radius: 4px;
-    color: var(--md-on-surface);
-  }
-  .md-input:focus {
-    border: 2px solid var(--md-primary);
-  }
-  .md-input-label {
-    @apply absolute left-4 top-3 text-xs font-medium pointer-events-none transition-all;
-    color: var(--md-on-surface-variant);
-  }
-  .md-select {
-    @apply w-full px-4 py-3 text-sm bg-white
-           focus:outline-none transition-all appearance-none;
-    border: 1px solid var(--md-outline);
-    border-radius: 4px;
-    color: var(--md-on-surface);
-  }
-  .md-select:focus {
-    border: 2px solid var(--md-primary);
-  }
-  .md-textarea {
-    @apply w-full px-4 py-3 text-sm bg-white resize-none
-           focus:outline-none transition-all;
-    border: 1px solid var(--md-outline);
-    border-radius: 4px;
-    color: var(--md-on-surface);
-  }
-  .md-textarea:focus {
-    border: 2px solid var(--md-primary);
-  }
+    .btn-outlined {
+        @apply inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium tracking-wide transition-all duration-200 active:opacity-80;
+        border: 1px solid var(--md-outline);
+        color: var(--md-primary);
+    }
 
-  /* ── Chips ── */
-  .chip {
-    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium;
-    border: 1px solid var(--md-outline);
-    color: var(--md-on-surface-variant);
-    background: white;
-  }
-  .chip-selected {
-    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium;
-    background-color: var(--md-secondary-container);
-    color: var(--md-on-primary-container);
-  }
+        .btn-outlined:hover {
+            background-color: color-mix(in srgb, var(--md-primary) 8%, transparent);
+        }
 
-  /* ── List ── */
-  .list-item {
-    @apply flex items-center gap-4 px-4 py-3 transition-colors cursor-pointer;
-  }
-  .list-item:hover {
-    background-color: color-mix(in srgb, var(--md-on-surface) 4%, transparent);
-  }
+    .btn-text {
+        @apply inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium tracking-wide transition-all duration-200 active:opacity-80;
+        color: var(--md-primary);
+    }
 
-  /* ── Divider ── */
-  .divider {
-    border-top: 1px solid var(--md-outline-variant);
-  }
+        .btn-text:hover {
+            background-color: color-mix(in srgb, var(--md-primary) 8%, transparent);
+        }
+
+    .btn-icon {
+        @apply inline-flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 active:opacity-80;
+        color: var(--md-on-surface-variant);
+    }
+
+        .btn-icon:hover {
+            background-color: color-mix(in srgb, var(--md-on-surface) 8%, transparent);
+        }
+
+    /* ── Cards ── */
+    .card-elevated {
+        @apply bg-white rounded-xl overflow-hidden;
+        box-shadow: 0px 1px 2px rgba(0,0,0,0.3), 0px 1px 3px 1px rgba(0,0,0,0.15);
+    }
+
+    .card-filled {
+        @apply rounded-xl overflow-hidden;
+        background-color: var(--md-surface-variant);
+    }
+
+    .card-outlined {
+        @apply bg-white rounded-xl overflow-hidden;
+        border: 1px solid var(--md-outline-variant);
+    }
+
+    /* ────────────────────────────────────────────────────────
+     FLOATING LABEL INPUTS
+     Wrapper must be:  <div class="md-field">
+     Inside:           <input class="md-input" placeholder=" " ...>
+                       <label class="md-input-label">Text</label>
+     The placeholder=" " (single space) is required — it lets
+     :placeholder-shown detect whether the field is empty.
+  ──────────────────────────────────────────────────────── */
+
+    /* Wrapper — provides the positioning context */
+    .md-field {
+        @apply relative;
+    }
+
+    /* Input base */
+    .md-input {
+        @apply w-full px-4 pt-5 pb-2 text-sm bg-white focus:outline-none transition-all;
+        border: 1px solid var(--md-outline);
+        border-radius: 4px;
+        color: var(--md-on-surface);
+        /* Enough top padding so text never overlaps the floated label */
+    }
+
+        .md-input:focus {
+            border: 2px solid var(--md-primary);
+            /* Compensate border width increase so layout doesn't shift */
+            padding-left: calc(1rem - 1px);
+            padding-right: calc(1rem - 1px);
+            padding-top: calc(1.25rem - 1px);
+            padding-bottom: calc(0.5rem - 1px);
+        }
+
+    /* Label — default state: sits in the middle of the input */
+    .md-input-label {
+        @apply absolute left-4 pointer-events-none transition-all duration-150;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 0.875rem; /* 14px — same as input text */
+        line-height: 1;
+        color: var(--md-on-surface-variant);
+    }
+
+    /* Label floated UP — triggers when:
+     (a) input is focused, OR
+     (b) input has a value (placeholder not shown = value present) */
+    .md-input:focus ~ .md-input-label,
+    .md-input:not(:placeholder-shown) ~ .md-input-label {
+        top: 0.45rem; /* floats near the top edge */
+        transform: translateY(0);
+        font-size: 0.7rem; /* 11px — smaller when floated */
+        color: var(--md-on-surface-variant);
+    }
+
+    /* Focused label uses primary colour */
+    .md-input:focus ~ .md-input-label {
+        color: var(--md-primary);
+    }
+
+    /* ── Select (no floating label — uses standard padding) ── */
+    .md-select {
+        @apply w-full px-4 py-3 text-sm bg-white focus:outline-none transition-all appearance-none;
+        border: 1px solid var(--md-outline);
+        border-radius: 4px;
+        color: var(--md-on-surface);
+    }
+
+        .md-select:focus {
+            border: 2px solid var(--md-primary);
+        }
+
+    /* ── Textarea ── */
+    .md-textarea {
+        @apply w-full px-4 py-3 text-sm bg-white resize-none focus:outline-none transition-all;
+        border: 1px solid var(--md-outline);
+        border-radius: 4px;
+        color: var(--md-on-surface);
+    }
+
+        .md-textarea:focus {
+            border: 2px solid var(--md-primary);
+        }
+
+    /* ── Chips ── */
+    .chip {
+        @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium;
+        border: 1px solid var(--md-outline);
+        color: var(--md-on-surface-variant);
+        background: white;
+    }
+
+    .chip-selected {
+        @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium;
+        background-color: var(--md-secondary-container);
+        color: var(--md-on-primary-container);
+    }
+
+    /* ── List ── */
+    .list-item {
+        @apply flex items-center gap-4 px-4 py-3 transition-colors cursor-pointer;
+    }
+
+        .list-item:hover {
+            background-color: color-mix(in srgb, var(--md-on-surface) 4%, transparent);
+        }
+
+    /* ── Divider ── */
+    .divider {
+        border-top: 1px solid var(--md-outline-variant);
+    }
 }
 
 /* ── Ripple ── */
 .ripple {
-  position: relative;
-  overflow: hidden;
-}
-.ripple::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: currentColor;
-  opacity: 0;
-  border-radius: inherit;
-  transition: opacity 200ms;
-}
-.ripple:active::after {
-  opacity: 0.08;
+    position: relative;
+    overflow: hidden;
 }
 
+    .ripple::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: currentColor;
+        opacity: 0;
+        border-radius: inherit;
+        transition: opacity 200ms;
+    }
+
+    .ripple:active::after {
+        opacity: 0.08;
+    }
+
 /* ── Scrollbar ── */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--md-outline-variant); border-radius: 4px; }
+::-webkit-scrollbar {
+    width: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--md-outline-variant);
+    border-radius: 4px;
+}
 
 /* ── Spin animation ── */
 @keyframes spin {
-  to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
+
 .animate-spin {
-  animation: spin 1s linear infinite;
+    animation: spin 1s linear infinite;
 }
