@@ -3,7 +3,7 @@ import { useStats } from '../hooks/useStats'
 import Skeleton from '../components/Skeleton'
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip,
-    ResponsiveContainer, CartesianGrid,
+    ResponsiveContainer,
 } from 'recharts'
 
 const POSITIONS = [
@@ -109,16 +109,17 @@ function Th({ children, col, sortCol, sortDir, onSort, className = '' }) {
 // ─────────────────────────────────────────────────────────────
 // Column group tab
 // ─────────────────────────────────────────────────────────────
-function ColTab({ id, label, active, onClick }) {
+function ColTab({ id, label, icon, active, onClick }) {
     return (
         <button
             onClick={() => onClick(id)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all whitespace-nowrap
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all whitespace-nowrap
         ${active
                     ? 'bg-md-primary text-white border-md-primary shadow-sm'
                     : 'border-md-outline-variant text-md-on-surface hover:bg-md-surface hover:border-md-primary/40'
                 }`}
         >
+            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>{icon}</span>
             {label}
         </button>
     )
@@ -126,14 +127,31 @@ function ColTab({ id, label, active, onClick }) {
 
 // ─────────────────────────────────────────────────────────────
 // Column group definitions
-// Each group defines which columns are visible in the table.
 // ─────────────────────────────────────────────────────────────
 const COL_GROUPS = [
-    { id: 'spiele', label: '⚽ Spiele' },
-    { id: 'training', label: '🏃 Training' },
-    { id: 'rating', label: '★ Rating' },
-    { id: 'anwesen', label: '📋 Anwesenheit' },
+    { id: 'spiele', label: 'Spiele', icon: 'sports_soccer' },
+    { id: 'training', label: 'Training', icon: 'fitness_center' },
+    { id: 'rating', label: 'Rating', icon: 'star' },
+    { id: 'anwesen', label: 'Anwesenheit', icon: 'check_circle' },
 ]
+
+// ─────────────────────────────────────────────────────────────
+// Chart card wrapper
+// ─────────────────────────────────────────────────────────────
+function ChartCard({ title, children, empty }) {
+    return (
+        <div className="bg-white rounded-2xl border border-md-outline-variant/60 p-5 flex flex-col">
+            <h3 className="text-sm font-bold text-md-on-surface mb-4 shrink-0"
+                style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                {title}
+            </h3>
+            {empty
+                ? <div className="flex-1 flex items-center justify-center text-sm text-md-outline min-h-[160px]">Keine Daten</div>
+                : children
+            }
+        </div>
+    )
+}
 
 // ─────────────────────────────────────────────────────────────
 // Main component
@@ -150,7 +168,7 @@ export default function Stats() {
     const [sortDir, setSortDir] = useState('desc')
 
     if (loading) return (
-        <div className="p-4 md:p-8 max-w-5xl space-y-4">
+        <div className="p-4 md:p-6 xl:p-8 space-y-4">
             <div className="flex items-center justify-between mb-2">
                 <Skeleton className="h-8 w-48" />
                 <div className="flex gap-2">
@@ -158,12 +176,11 @@ export default function Stats() {
                     <Skeleton className="h-9 w-20 rounded-xl" />
                 </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
                 {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
             </div>
-            <div className="grid md:grid-cols-2 gap-4">
-                <Skeleton className="h-64 rounded-2xl" />
-                <Skeleton className="h-64 rounded-2xl" />
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
             </div>
         </div>
     )
@@ -194,6 +211,22 @@ export default function Stats() {
         .sort((a, b) => (b.attendance_match_pct ?? 0) - (a.attendance_match_pct ?? 0))
         .slice(0, 8)
 
+    const topAssists = [...allPlayers]
+        .sort((a, b) => (b.total_assists ?? 0) - (a.total_assists ?? 0))
+        .filter(p => (p.total_assists ?? 0) > 0)
+        .slice(0, 8)
+
+    const topScorers = [...allPlayers]
+        .sort((a, b) => ((b.total_goals ?? 0) + (b.total_assists ?? 0)) - ((a.total_goals ?? 0) + (a.total_assists ?? 0)))
+        .filter(p => (p.total_goals ?? 0) + (p.total_assists ?? 0) > 0)
+        .slice(0, 8)
+        .map(p => ({ ...p, goal_contributions: (p.total_goals ?? 0) + (p.total_assists ?? 0) }))
+
+    const topAttendTraining = [...allPlayers]
+        .filter(p => p.attendance_training_pct != null)
+        .sort((a, b) => (b.attendance_training_pct ?? 0) - (a.attendance_training_pct ?? 0))
+        .slice(0, 8)
+
     // ── Summary tiles ─────────────────────────────────────────
     const tiles = teamSummary ? [
         { label: 'Spieler', value: teamSummary.player_count, icon: 'group' },
@@ -213,13 +246,17 @@ export default function Stats() {
         },
         {
             label: 'Ø Rating Spiel', value: teamSummary.avg_match_rating != null
-                ? `${teamSummary.avg_match_rating}★` : '–', icon: 'star'
+                ? `${teamSummary.avg_match_rating}` : '–', icon: 'star'
         },
         { label: 'Verletzt', value: teamSummary.active_injuries, icon: 'healing' },
     ] : []
 
+    // ── Bar chart shared props ────────────────────────────────
+    const barMargin = { left: 60, right: 16, top: 0, bottom: 0 }
+
     return (
-        <div className="p-4 md:p-8 max-w-5xl">
+        // Removed max-w-5xl → full width, padded generously on large screens
+        <div className="p-4 md:p-6 xl:p-8 w-full">
 
             {/* ── Header ── */}
             <div className="flex items-start justify-between mb-5 gap-4 flex-wrap">
@@ -244,9 +281,10 @@ export default function Stats() {
                 </div>
             </div>
 
-            {/* ── Team summary tiles ── */}
+            {/* ── Team summary tiles ──
+                Mobile: 2 cols → Tablet: 4 cols → Desktop: 8 cols (all in one row) */}
             {teamSummary && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3 mb-6">
                     {tiles.map(s => (
                         <Tile key={s.label} label={s.label} value={s.value} icon={s.icon} sub={s.sub} />
                     ))}
@@ -281,68 +319,107 @@ export default function Stats() {
                 </div>
             </div>
 
-            {/* ── Charts ── */}
-            <div className="grid md:grid-cols-2 gap-4 mb-6">
+            {/* ── Charts ──
+                Mobile: 1 col → Tablet: 2 cols → Desktop: 3 cols  */}
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
 
-                {/* Top scorers */}
-                <div className="bg-white rounded-2xl border border-md-outline-variant/60 p-5">
-                    <h3
-                        className="text-sm font-bold text-md-on-surface mb-4"
-                        style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
-                    >
-                        Top-Torschützen
-                    </h3>
-                    {topGoals.length === 0 ? (
-                        <div className="h-40 flex items-center justify-center text-sm text-md-outline">Keine Daten</div>
-                    ) : (
-                        <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={topGoals} layout="vertical" margin={{ left: 56, right: 16, top: 0, bottom: 0 }}>
-                                <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }} axisLine={false} tickLine={false} />
-                                <YAxis
-                                    type="category" dataKey="name"
-                                    tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
-                                    width={56} tickFormatter={v => v.split(' ').at(-1)}
-                                    axisLine={false} tickLine={false}
-                                />
-                                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,106,96,0.06)' }} />
-                                <Bar dataKey="total_goals" name="Tore" fill="var(--md-primary)"
-                                    radius={[0, 6, 6, 0]} maxBarSize={20} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    )}
-                </div>
+                {/* Top-Torschützen */}
+                <ChartCard title="Top-Torschützen" empty={topGoals.length === 0}>
+                    <ResponsiveContainer width="100%" height={240}>
+                        <BarChart data={topGoals} layout="vertical" margin={barMargin}>
+                            <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                axisLine={false} tickLine={false} allowDecimals={false}
+                                tickCount={Math.min(6, Math.max(...topGoals.map(p => p.total_goals ?? 0)) + 1)} />
+                            <YAxis type="category" dataKey="name"
+                                tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                axisLine={false} tickLine={false} />
+                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,106,96,0.06)' }} />
+                            <Bar dataKey="total_goals" name="Tore" fill="var(--md-primary)"
+                                radius={[0, 6, 6, 0]} maxBarSize={20} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </ChartCard>
 
-                {/* Match attendance */}
-                <div className="bg-white rounded-2xl border border-md-outline-variant/60 p-5">
-                    <h3
-                        className="text-sm font-bold text-md-on-surface mb-4"
-                        style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
-                    >
-                        Anwesenheit Spiele
-                    </h3>
-                    {topAttendMatch.length === 0 ? (
-                        <div className="h-40 flex items-center justify-center text-sm text-md-outline">Keine Daten</div>
-                    ) : (
-                        <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={topAttendMatch} layout="vertical" margin={{ left: 56, right: 16, top: 0, bottom: 0 }}>
-                                <XAxis
-                                    type="number" domain={[0, 100]}
-                                    tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
-                                    unit="%" axisLine={false} tickLine={false}
-                                />
-                                <YAxis
-                                    type="category" dataKey="name"
-                                    tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
-                                    width={56} tickFormatter={v => v.split(' ').at(-1)}
-                                    axisLine={false} tickLine={false}
-                                />
-                                <Tooltip content={<CustomTooltip unit="%" />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
-                                <Bar dataKey="attendance_match_pct" name="Anwesenheit" fill="#10b981"
-                                    radius={[0, 6, 6, 0]} maxBarSize={20} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    )}
-                </div>
+                {/* Top-Assistgeber */}
+                <ChartCard title="Top-Assistgeber" empty={topAssists.length === 0}>
+                    <ResponsiveContainer width="100%" height={240}>
+                        <BarChart data={topAssists} layout="vertical" margin={barMargin}>
+                            <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                axisLine={false} tickLine={false} allowDecimals={false}
+                                tickCount={Math.min(6, Math.max(...topAssists.map(p => p.total_assists ?? 0)) + 1)} />
+                            <YAxis type="category" dataKey="name"
+                                tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                axisLine={false} tickLine={false} />
+                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(99,102,241,0.06)' }} />
+                            <Bar dataKey="total_assists" name="Assists" fill="#6366f1"
+                                radius={[0, 6, 6, 0]} maxBarSize={20} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </ChartCard>
+
+                {/* Top-Scorer (Tore + Assists) */}
+                <ChartCard
+                    title={<>Top-Scorer <span className="ml-1.5 text-xs font-normal text-md-outline">Tore + Assists</span></>}
+                    empty={topScorers.length === 0}
+                >
+                    <ResponsiveContainer width="100%" height={240}>
+                        <BarChart data={topScorers} layout="vertical" margin={barMargin}>
+                            <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                axisLine={false} tickLine={false} allowDecimals={false}
+                                tickCount={Math.min(6, Math.max(...topScorers.map(p => p.goal_contributions ?? 0)) + 1)} />
+                            <YAxis type="category" dataKey="name"
+                                tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                axisLine={false} tickLine={false} />
+                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(245,158,11,0.06)' }} />
+                            <Bar dataKey="goal_contributions" name="Torbeteiligungen" fill="#f59e0b"
+                                radius={[0, 6, 6, 0]} maxBarSize={20} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </ChartCard>
+
+                {/* Anwesenheit Training */}
+                <ChartCard title="Anwesenheit Training" empty={topAttendTraining.length === 0}>
+                    <ResponsiveContainer width="100%" height={240}>
+                        <BarChart data={topAttendTraining} layout="vertical" margin={barMargin}>
+                            <XAxis type="number" domain={[0, 100]}
+                                tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                unit="%" axisLine={false} tickLine={false} allowDecimals={false} />
+                            <YAxis type="category" dataKey="name"
+                                tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                axisLine={false} tickLine={false} />
+                            <Tooltip content={<CustomTooltip unit="%" />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
+                            <Bar dataKey="attendance_training_pct" name="Anwesenheit" fill="#10b981"
+                                radius={[0, 6, 6, 0]} maxBarSize={20} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </ChartCard>
+
+                {/* Anwesenheit Spiele */}
+                <ChartCard title="Anwesenheit Spiele" empty={topAttendMatch.length === 0}>
+                    <ResponsiveContainer width="100%" height={240}>
+                        <BarChart data={topAttendMatch} layout="vertical" margin={barMargin}>
+                            <XAxis
+                                type="number" domain={[0, 100]}
+                                tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                unit="%" axisLine={false} tickLine={false}
+                            />
+                            <YAxis
+                                type="category" dataKey="name"
+                                tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                axisLine={false} tickLine={false}
+                            />
+                            <Tooltip content={<CustomTooltip unit="%" />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
+                            <Bar dataKey="attendance_match_pct" name="Anwesenheit" fill="#10b981"
+                                radius={[0, 6, 6, 0]} maxBarSize={20} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </ChartCard>
+
             </div>
 
             {/* ── Player table ── */}
@@ -365,6 +442,7 @@ export default function Stats() {
                                 key={g.id}
                                 id={g.id}
                                 label={g.label}
+                                icon={g.icon}
                                 active={colGroup === g.id}
                                 onClick={setColGroup}
                             />
@@ -377,7 +455,6 @@ export default function Stats() {
                         <thead>
                             <tr className="border-b border-md-outline-variant/60 bg-md-surface/60">
 
-                                {/* Always-visible: name + position */}
                                 <Th
                                     col="name"
                                     sortCol={sortCol} sortDir={sortDir} onSort={handleSort}
@@ -397,7 +474,7 @@ export default function Stats() {
 
                                 {/* ── Training ── */}
                                 {colGroup === 'training' && <>
-                                    <Th col="sessions_attended" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Einh.</Th>
+                                    <Th col="trainings_attended" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Einh.</Th>
                                     <Th col="training_minutes" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Min.</Th>
                                 </>}
 
@@ -427,7 +504,7 @@ export default function Stats() {
                                     className={`transition-colors hover:bg-md-surface/50
                     ${i < sorted.length - 1 ? 'border-b border-md-outline-variant/50' : ''}`}
                                 >
-                                    {/* Name + position — always visible */}
+                                    {/* Name + position */}
                                     <td className="px-5 py-3">
                                         <div
                                             className="font-semibold text-md-on-surface"
@@ -462,7 +539,6 @@ export default function Stats() {
                                         </td>
                                         <td className="text-right px-4 py-3 tabular-nums text-md-on-surface"
                                             style={{ fontFamily: "'DM Mono', monospace" }}>
-                                            {/* clean_sheets only relevant for TW, show dash for others */}
                                             {POS_SHORT[p.position] === 'TW' || p.clean_sheets > 0
                                                 ? fmt(p.clean_sheets)
                                                 : <span className="text-md-outline/40">–</span>
@@ -474,7 +550,7 @@ export default function Stats() {
                                     {colGroup === 'training' && <>
                                         <td className="text-right px-3 py-3 tabular-nums text-md-on-surface"
                                             style={{ fontFamily: "'DM Mono', monospace" }}>
-                                            {fmt(p.sessions_attended)}
+                                            {fmt(p.trainings_attended)}
                                         </td>
                                         <td className="text-right px-4 py-3 tabular-nums text-md-outline"
                                             style={{ fontFamily: "'DM Mono', monospace" }}>
@@ -490,7 +566,7 @@ export default function Stats() {
                                                     className={`font-bold tabular-nums ${ratingColor(p.avg_match_rating)}`}
                                                     style={{ fontFamily: "'DM Mono', monospace" }}
                                                 >
-                                                    {p.avg_match_rating}★
+                                                    {p.avg_match_rating}
                                                 </span>
                                             ) : <span className="text-md-outline">–</span>}
                                         </td>
@@ -500,7 +576,7 @@ export default function Stats() {
                                                     className={`font-bold tabular-nums ${ratingColor(p.avg_training_rating)}`}
                                                     style={{ fontFamily: "'DM Mono', monospace" }}
                                                 >
-                                                    {p.avg_training_rating}★
+                                                    {p.avg_training_rating}
                                                 </span>
                                             ) : <span className="text-md-outline">–</span>}
                                         </td>

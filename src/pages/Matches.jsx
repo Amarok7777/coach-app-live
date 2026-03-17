@@ -16,11 +16,10 @@ function resultStyle(won, draw, played) {
     return { label: 'N', color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200' }
 }
 
-function MatchRow({ match: m, index, total }) {
+function MatchRow({ match: m, index, total, canEdit, onEdit, onDelete }) {
     const d = new Date(m.date)
     const day = d.getDate()
     const wd = WEEKDAYS[d.getDay()]
-    const month = d.toLocaleDateString('de-DE', { month: 'short' })
     const played = m.score_own !== null && m.score_opp !== null
     const won = played && m.score_own > m.score_opp
     const draw = played && m.score_own === m.score_opp
@@ -29,10 +28,9 @@ function MatchRow({ match: m, index, total }) {
     const isToday = m.date === new Date().toISOString().split('T')[0]
 
     return (
-        <Link
-            to={`/matches/${m.id}`}
-            className={`group flex items-center gap-4 px-4 py-3 bg-white
-        hover:bg-md-surface/70 transition-all duration-150
+        <div
+            className={`group relative flex items-center gap-4 px-4 py-3 bg-white
+        transition-all duration-150
         ${index < total - 1 ? 'border-b border-md-outline-variant/60' : ''}
       `}
             style={{ borderLeft: '3px solid transparent' }}
@@ -41,8 +39,16 @@ function MatchRow({ match: m, index, total }) {
                 : '#006A60'}
             onMouseLeave={e => e.currentTarget.style.borderLeftColor = 'transparent'}
         >
+            {/* Clickable area — navigates to detail */}
+            <Link
+                to={`/matches/${m.id}`}
+                className="absolute inset-0"
+                tabIndex={-1}
+                aria-hidden="true"
+            />
+
             {/* Date tile */}
-            <div className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0 border
+            <div className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0 border relative z-10 pointer-events-none
         ${isToday ? 'bg-md-primary border-md-primary' : 'bg-md-surface border-md-outline-variant/60'}`}>
                 <span className={`text-sm font-black leading-none tabular-nums
           ${isToday ? 'text-white' : 'text-md-on-surface'}`}
@@ -56,7 +62,7 @@ function MatchRow({ match: m, index, total }) {
             </div>
 
             {/* Content */}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 relative z-10 pointer-events-none">
                 <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-semibold text-md-on-surface truncate"
                         style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
@@ -92,34 +98,84 @@ function MatchRow({ match: m, index, total }) {
 
             {/* Result badge */}
             {played && (
-                <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0
-          font-black text-sm ${result.bg} ${result.color} ${result.border}`}
+                <div className={`relative z-10 w-8 h-8 rounded-lg border flex items-center justify-center shrink-0
+          font-black text-sm pointer-events-none ${result.bg} ${result.color} ${result.border}`}
                     style={{ fontFamily: "'DM Mono', monospace" }}>
                     {result.label}
                 </div>
             )}
 
-            <span className="material-symbols-outlined icon-sm text-md-outline/40
-        group-hover:text-md-primary group-hover:translate-x-0.5 transition-all shrink-0">
-                chevron_right
-            </span>
-        </Link>
+            {/* Action buttons — appear on hover, only for canEdit */}
+            {canEdit && (
+                <div
+                    className="relative z-10 flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={e => e.stopPropagation()}
+                >
+                    <button
+                        onClick={e => { e.preventDefault(); e.stopPropagation(); onEdit(m) }}
+                        className="btn-icon w-8 h-8 hover:bg-md-primary/10 hover:text-md-primary"
+                        title="Bearbeiten"
+                    >
+                        <span className="material-symbols-outlined icon-sm">edit</span>
+                    </button>
+                    <button
+                        onClick={e => { e.preventDefault(); e.stopPropagation(); onDelete(e, m.id) }}
+                        className="btn-icon w-8 h-8 hover:bg-red-50 hover:text-red-600"
+                        title="Löschen"
+                    >
+                        <span className="material-symbols-outlined icon-sm">delete</span>
+                    </button>
+                </div>
+            )}
+
+            {/* Chevron */}
+            {!canEdit && (
+                <span className="relative z-10 material-symbols-outlined icon-sm text-md-outline/40
+          group-hover:text-md-primary group-hover:translate-x-0.5 transition-all shrink-0 pointer-events-none">
+                    chevron_right
+                </span>
+            )}
+            {canEdit && (
+                <span className="relative z-10 material-symbols-outlined icon-sm text-md-outline/30 shrink-0
+          group-hover:opacity-0 transition-opacity pointer-events-none">
+                    chevron_right
+                </span>
+            )}
+        </div>
     )
 }
 
 export default function Matches() {
     const { canEdit } = useAuth()
-    const { matches, loading, create } = useMatches()
+    const { matches, loading, create, update, remove } = useMatches()
     const [showForm, setShowForm] = useState(false)
     const [form, setForm] = useState(EMPTY)
     const [saving, setSaving] = useState(false)
     const [err, setErr] = useState(null)
 
+    function openEdit(m) {
+        setForm({
+            id: m.id,
+            date: m.date ?? '',
+            opponent: m.opponent ?? '',
+            home_away: m.home_away ?? 'Heim',
+        })
+        setShowForm(true)
+    }
+
+    async function handleDelete(e, id) {
+        e.preventDefault(); e.stopPropagation()
+        if (!confirm('Spieltag wirklich löschen?')) return
+        try { await remove(id) } catch (error) { alert(error.message || 'Fehler beim Löschen') }
+    }
+
     async function handleSave(e) {
         e.preventDefault()
         setSaving(true); setErr(null)
         try {
-            await create({ date: form.date, opponent: form.opponent, home_away: form.home_away })
+            const fields = { date: form.date, opponent: form.opponent, home_away: form.home_away }
+            if (form.id) await update(form.id, fields)
+            else await create(fields)
             setShowForm(false); setForm(EMPTY)
         } catch (e) { setErr(e.message) }
         finally { setSaving(false) }
@@ -221,7 +277,15 @@ export default function Matches() {
                         </div>
                         <div className="card-outlined overflow-hidden">
                             {upcoming.map((m, i) => (
-                                <MatchRow key={m.id} match={m} index={i} total={upcoming.length} />
+                                <MatchRow
+                                    key={m.id}
+                                    match={m}
+                                    index={i}
+                                    total={upcoming.length}
+                                    canEdit={canEdit}
+                                    onEdit={openEdit}
+                                    onDelete={handleDelete}
+                                />
                             ))}
                         </div>
                     </div>
@@ -236,7 +300,15 @@ export default function Matches() {
                         </div>
                         <div className="card-outlined overflow-hidden">
                             {past.map((m, i) => (
-                                <MatchRow key={m.id} match={m} index={i} total={past.length} />
+                                <MatchRow
+                                    key={m.id}
+                                    match={m}
+                                    index={i}
+                                    total={past.length}
+                                    canEdit={canEdit}
+                                    onEdit={openEdit}
+                                    onDelete={handleDelete}
+                                />
                             ))}
                         </div>
                     </div>
@@ -250,9 +322,18 @@ export default function Matches() {
                         style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}>
                         <div className="flex items-center gap-3 px-5 py-4 border-b border-md-outline-variant">
                             <div className="w-9 h-9 rounded-xl bg-md-primary-container flex items-center justify-center">
-                                <span className="material-symbols-outlined icon-sm text-md-primary">sports_soccer</span>
+                                <span className="material-symbols-outlined icon-sm text-md-primary">
+                                    {form.id ? 'edit' : 'sports_soccer'}
+                                </span>
                             </div>
-                            <h2 className="text-base font-bold text-md-on-surface flex-1">Neuer Spieltag</h2>
+                            <div className="flex-1">
+                                <h2 className="text-base font-bold text-md-on-surface">
+                                    {form.id ? 'Spieltag bearbeiten' : 'Neuer Spieltag'}
+                                </h2>
+                                {form.id && form.opponent && (
+                                    <p className="text-xs text-md-outline">{form.opponent}</p>
+                                )}
+                            </div>
                             <button onClick={() => setShowForm(false)} className="btn-icon w-8 h-8">
                                 <span className="material-symbols-outlined icon-sm">close</span>
                             </button>

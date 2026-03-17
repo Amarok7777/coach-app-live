@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useDashboard } from '../hooks/useDashboard'
 import Skeleton from '../components/Skeleton'
@@ -10,28 +11,74 @@ function today() {
     return `${WEEKDAYS[d.getDay()]}, ${d.getDate()}. ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
 }
 
-// ─── Stat tile ────────────────────────────────────────────
-function StatTile({ label, value, icon, to, accent = false }) {
+// ─── Carousel tile — cycles through slides automatically ──
+// slides: [{ value, sublabel }]  — icon is fixed per tile, not per slide
+function CarouselTile({ slides, icon, to, interval = 3000 }) {
+    const [idx, setIdx] = useState(0)
+
+    useEffect(() => {
+        const t = setInterval(() => setIdx(i => (i + 1) % slides.length), interval)
+        return () => clearInterval(t)
+    }, [slides.length, interval])
+
+    const slide = slides[idx]
+
     return (
         <Link to={to}>
-            <div className={`group relative bg-white rounded-2xl border border-md-outline-variant/60
-        p-4 flex flex-col gap-3 hover:shadow-md transition-all duration-200 overflow-hidden`}>
-                {/* Background accent circle */}
+            <div className="group relative bg-white rounded-2xl border border-md-outline-variant/60
+        p-4 flex flex-col hover:shadow-md transition-all duration-200 overflow-hidden"
+                style={{ minHeight: '7rem' }}>
                 <div className="absolute -right-3 -top-3 w-16 h-16 rounded-full bg-md-primary/5
           group-hover:bg-md-primary/10 transition-colors" />
-                <div className="w-9 h-9 rounded-xl bg-md-primary-container flex items-center justify-center">
-                    <span className="material-symbols-outlined text-md-primary" style={{ fontSize: 18 }}>{icon}</span>
+
+                {/* Fixed icon */}
+                <div className="w-9 h-9 rounded-xl bg-md-primary-container flex items-center justify-center mb-3">
+                    <span className="material-symbols-outlined text-md-primary" style={{ fontSize: 18 }}>
+                        {icon}
+                    </span>
                 </div>
-                <div>
+
+                {/* Value + sublabel — animate on slide change */}
+                <div key={idx} className="flex-1" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
                     <p className="text-2xl font-black text-md-on-surface leading-none tabular-nums"
                         style={{ fontFamily: "'DM Mono', monospace" }}>
-                        {value}
+                        {slide.value}
                     </p>
-                    <p className="text-xs text-md-outline mt-1 font-medium">{label}</p>
+                    <p className="text-xs text-md-outline mt-1 font-medium">{slide.sublabel}</p>
+                </div>
+
+                {/* Dots — scale down for many slides */}
+                <div className="flex justify-center mt-2" style={{ gap: 3 }}>
+                    {slides.map((_, i) => (
+                        <button
+                            key={i}
+                            onClick={e => { e.preventDefault(); setIdx(i) }}
+                            style={{
+                                width: i === idx ? 6 : slides.length > 5 ? 3 : 4,
+                                height: i === idx ? 4 : slides.length > 5 ? 3 : 4,
+                                padding: 0,
+                                flexShrink: 0,
+                                borderRadius: 999,
+                                transition: 'all 0.2s',
+                                background: i === idx
+                                    ? 'var(--md-primary, #006A60)'
+                                    : 'rgba(120,130,140,0.35)',
+                                border: 'none',
+                            }}
+                        />
+                    ))}
                 </div>
             </div>
         </Link>
     )
+}
+
+// Inject fade animation once
+if (typeof document !== 'undefined' && !document.getElementById('carousel-tile-style')) {
+    const s = document.createElement('style')
+    s.id = 'carousel-tile-style'
+    s.textContent = '@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }'
+    document.head.appendChild(s)
 }
 
 // ─── Section card ─────────────────────────────────────────
@@ -78,13 +125,51 @@ export default function Dashboard() {
         </div>
     )
 
-    const statCards = [
-        { label: 'Spieler', value: summary?.player_count ?? 0, icon: 'group', to: '/players' },
-        { label: 'Trainings', value: summary?.session_count ?? 0, icon: 'calendar_month', to: '/training' },
-        { label: 'Spiele', value: summary?.match_count ?? 0, icon: 'sports_soccer', to: '/matches' },
-        { label: 'Ø Rating', value: summary?.avg_rating_recent ?? '–', icon: 'star', to: '/stats' },
-        { label: 'Anwesenheit', value: summary?.attendance_pct_recent ? `${summary.attendance_pct_recent}%` : '–', icon: 'check_circle', to: '/stats' },
-        { label: 'Verletzt', value: summary?.active_injuries ?? 0, icon: 'healing', to: '/injuries' },
+    const t = summary?.training_by_type ?? {}
+
+    const playerSlides = [
+        { value: summary?.player_count ?? 0, sublabel: 'Gesamt' },
+        { value: summary?.defense_count ?? 0, sublabel: 'Defensiv' },
+        { value: summary?.midfield_count ?? 0, sublabel: 'Mittelfeld' },
+        { value: summary?.offense_count ?? 0, sublabel: 'Offensiv' },
+    ]
+
+    const trainingSlides = [
+        { value: summary?.session_count ?? 0, sublabel: 'Gesamt' },
+        { value: t['Technik'] ?? 0, sublabel: 'Technik' },
+        { value: t['Taktik'] ?? 0, sublabel: 'Taktik' },
+        { value: t['Kondition'] ?? 0, sublabel: 'Kondition' },
+        { value: t['Spielform'] ?? 0, sublabel: 'Spielform' },
+        { value: t['Torschuss'] ?? 0, sublabel: 'Torschuss' },
+        { value: t['Standards'] ?? 0, sublabel: 'Standards' },
+        { value: t['Testspiel'] ?? 0, sublabel: 'Testspiel' },
+        { value: t['Sonstiges'] ?? 0, sublabel: 'Sonstiges' },
+    ]
+
+    const matchSlides = [
+        { value: summary?.match_count ?? 0, sublabel: 'Gesamt' },
+        { value: summary?.wins ?? 0, sublabel: 'Siege' },
+        { value: summary?.draws ?? 0, sublabel: 'Unentschieden' },
+        { value: summary?.losses ?? 0, sublabel: 'Niederlagen' },
+        { value: summary?.goals_for ?? 0, sublabel: 'Tore' },
+        { value: summary?.goals_against ?? 0, sublabel: 'Gegentore' },
+    ]
+
+    const ratingSlides = [
+        { value: summary?.avg_match_rating != null ? `${summary.avg_match_rating}` : '–', sublabel: 'Spiel' },
+        { value: summary?.avg_training_rating != null ? `${summary.avg_training_rating}` : '–', sublabel: 'Training' },
+    ]
+
+    const attendanceSlides = [
+        { value: summary?.avg_attendance_match_pct != null ? `${summary.avg_attendance_match_pct}%` : '–', sublabel: 'Spiele' },
+        { value: summary?.avg_attendance_training_pct != null ? `${summary.avg_attendance_training_pct}%` : '–', sublabel: 'Training' },
+    ]
+
+    const vacationCount = summary?.vacation_count ?? 0
+
+    const injurySlides = [
+        { value: summary?.active_injuries ?? 0, sublabel: 'Verletzt' },
+        { value: vacationCount, sublabel: 'Urlaub' },
     ]
 
     return (
@@ -101,7 +186,12 @@ export default function Dashboard() {
 
             {/* ── Stat tiles ── */}
             <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
-                {statCards.map(c => <StatTile key={c.label} {...c} />)}
+                <CarouselTile slides={playerSlides} icon="group" to="/players" interval={2500} />
+                <CarouselTile slides={trainingSlides} icon="calendar_month" to="/training" interval={2000} />
+                <CarouselTile slides={matchSlides} icon="sports_soccer" to="/matches" interval={2200} />
+                <CarouselTile slides={ratingSlides} icon="star" to="/stats" interval={3000} />
+                <CarouselTile slides={attendanceSlides} icon="check_circle" to="/stats" interval={3500} />
+                <CarouselTile slides={injurySlides} icon="healing" to="/players" interval={4000} />
             </div>
 
             {/* ── Row 1: Termine + Torschützen ── */}
