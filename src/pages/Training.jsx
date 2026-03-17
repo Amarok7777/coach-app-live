@@ -22,7 +22,7 @@ const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
 
 const EMPTY = { date: '', title: '', type: '', description: '', duration_min: 90 }
 
-function SessionRow({ session: s, index, total }) {
+function SessionRow({ session: s, index, total, canEdit, onEdit, onDelete }) {
     const cfg = TYPE_CONFIG[s.type] ?? DEFAULT_TYPE
     const d = new Date(s.date)
     const day = d.getDate()
@@ -30,18 +30,25 @@ function SessionRow({ session: s, index, total }) {
     const isToday = s.date === new Date().toISOString().split('T')[0]
 
     return (
-        <Link
-            to={`/training/${s.id}`}
-            className={`group flex items-center gap-4 px-4 py-3 bg-white
-        hover:bg-md-surface/70 transition-all duration-150
+        <div
+            className={`group relative flex items-center gap-4 px-4 py-3 bg-white
+        transition-all duration-150
         ${index < total - 1 ? 'border-b border-md-outline-variant/60' : ''}
       `}
             style={{ borderLeft: '3px solid transparent' }}
             onMouseEnter={e => e.currentTarget.style.borderLeftColor = `var(--${s.type ? s.type.toLowerCase() : 'gray'}-400, #006A60)`}
             onMouseLeave={e => e.currentTarget.style.borderLeftColor = 'transparent'}
         >
+            {/* Clickable area — navigates to detail */}
+            <Link
+                to={`/training/${s.id}`}
+                className="absolute inset-0"
+                tabIndex={-1}
+                aria-hidden="true"
+            />
+
             {/* Date tile */}
-            <div className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0 border
+            <div className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0 border relative z-10 pointer-events-none
         ${isToday ? 'bg-md-primary border-md-primary' : `${cfg.bg} ${cfg.border}`}`}
             >
                 <span className={`text-sm font-black leading-none tabular-nums
@@ -56,7 +63,7 @@ function SessionRow({ session: s, index, total }) {
             </div>
 
             {/* Content */}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 relative z-10 pointer-events-none">
                 <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-md-on-surface truncate"
                         style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
@@ -81,35 +88,85 @@ function SessionRow({ session: s, index, total }) {
                 </div>
             </div>
 
-            {/* Type dot */}
-            <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot} opacity-60 group-hover:opacity-100 transition-opacity`} />
-            <span className="material-symbols-outlined icon-sm text-md-outline/40
-        group-hover:text-md-primary group-hover:translate-x-0.5 transition-all shrink-0">
-                chevron_right
-            </span>
-        </Link>
+            {/* Action buttons — appear on hover, only for canEdit */}
+            {canEdit && (
+                <div
+                    className="relative z-10 flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={e => e.stopPropagation()}
+                >
+                    <button
+                        onClick={e => { e.preventDefault(); e.stopPropagation(); onEdit(s) }}
+                        className="btn-icon w-8 h-8 hover:bg-md-primary/10 hover:text-md-primary"
+                        title="Bearbeiten"
+                    >
+                        <span className="material-symbols-outlined icon-sm">edit</span>
+                    </button>
+                    <button
+                        onClick={e => { e.preventDefault(); e.stopPropagation(); onDelete(e, s.id) }}
+                        className="btn-icon w-8 h-8 hover:bg-red-50 hover:text-red-600"
+                        title="Löschen"
+                    >
+                        <span className="material-symbols-outlined icon-sm">delete</span>
+                    </button>
+                </div>
+            )}
+
+            {/* Chevron — fades out when action buttons appear (canEdit), always visible otherwise */}
+            {!canEdit && (
+                <span className="relative z-10 material-symbols-outlined icon-sm text-md-outline/40
+          group-hover:text-md-primary group-hover:translate-x-0.5 transition-all shrink-0 pointer-events-none">
+                    chevron_right
+                </span>
+            )}
+            {canEdit && (
+                <span className="relative z-10 material-symbols-outlined icon-sm text-md-outline/30 shrink-0
+          group-hover:opacity-0 transition-opacity pointer-events-none">
+                    chevron_right
+                </span>
+            )}
+        </div>
     )
 }
 
 export default function Training() {
     const { canEdit } = useAuth()
-    const { sessions, loading, create } = useTraining()
+    const { sessions, loading, create, update, remove } = useTraining()
     const [showForm, setShowForm] = useState(false)
     const [form, setForm] = useState(EMPTY)
     const [saving, setSaving] = useState(false)
     const [err, setErr] = useState(null)
 
+    function openEdit(s) {
+        setForm({
+            id: s.id,
+            date: s.date ?? '',
+            title: s.title ?? '',
+            type: s.type ?? '',
+            description: s.description ?? '',
+            duration_min: s.duration_min != null ? String(s.duration_min) : '90',
+        })
+        setShowForm(true)
+    }
+
+    async function handleDelete(e, id) {
+        e.preventDefault(); e.stopPropagation()
+        if (!confirm('Trainingseinheit wirklich löschen?')) return
+        try { await remove(id) } catch (error) { alert(error.message || 'Fehler beim Löschen') }
+    }
+
     async function handleSave(e) {
         e.preventDefault()
         setSaving(true); setErr(null)
         try {
-            await create({
+            const fields = {
                 date: form.date,
                 title: form.title || null,
                 type: form.type || null,
                 description: form.description || null,
                 duration_min: form.duration_min ? parseInt(form.duration_min) : 90,
-            })
+            }
+            if (form.id) await update(form.id, fields)
+            else await create(fields)
             setShowForm(false); setForm(EMPTY)
         } catch (e) { setErr(e.message) }
         finally { setSaving(false) }
@@ -199,7 +256,15 @@ export default function Training() {
                         </div>
                         <div className="card-outlined overflow-hidden">
                             {items.map((s, i) => (
-                                <SessionRow key={s.id} session={s} index={i} total={items.length} />
+                                <SessionRow
+                                    key={s.id}
+                                    session={s}
+                                    index={i}
+                                    total={items.length}
+                                    canEdit={canEdit}
+                                    onEdit={openEdit}
+                                    onDelete={handleDelete}
+                                />
                             ))}
                         </div>
                     </div>
@@ -213,9 +278,18 @@ export default function Training() {
                         style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}>
                         <div className="flex items-center gap-3 px-5 py-4 border-b border-md-outline-variant">
                             <div className="w-9 h-9 rounded-xl bg-md-primary-container flex items-center justify-center">
-                                <span className="material-symbols-outlined icon-sm text-md-primary">calendar_add_on</span>
+                                <span className="material-symbols-outlined icon-sm text-md-primary">
+                                    {form.id ? 'edit' : 'calendar_add_on'}
+                                </span>
                             </div>
-                            <h2 className="text-base font-bold text-md-on-surface flex-1">Neue Trainingseinheit</h2>
+                            <div className="flex-1">
+                                <h2 className="text-base font-bold text-md-on-surface">
+                                    {form.id ? 'Einheit bearbeiten' : 'Neue Trainingseinheit'}
+                                </h2>
+                                {form.id && form.title && (
+                                    <p className="text-xs text-md-outline">{form.title}</p>
+                                )}
+                            </div>
                             <button onClick={() => setShowForm(false)} className="btn-icon w-8 h-8">
                                 <span className="material-symbols-outlined icon-sm">close</span>
                             </button>

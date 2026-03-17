@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 export function useDashboard() {
@@ -21,15 +21,53 @@ export function useDashboard() {
 
             const today = new Date().toISOString().split('T')[0]
 
-            const [summaryRes, matchesRes, trainingsRes, notesRes, injuriesRes, scorersRes] = await Promise.all([
-                // Team summary from our new view
+            const [
+                summaryRes,
+                playerStatsRes,
+                allMatchesRes,
+                allTrainingsRes,
+                playerPositionsRes,
+                upcomingMatchesRes,
+                upcomingTrainingsRes,
+                notesRes,
+                injuriesRes,
+                scorersRes,
+            ] = await Promise.all([
+                // Team summary view
                 supabase
                     .from('team_summary')
                     .select('*')
                     .eq('user_id', user.id)
                     .single(),
 
-                // Upcoming matches
+                // Player stats — for attendance + training rating averages
+                // (team_summary view does not contain these aggregates)
+                supabase
+                    .from('player_stats_summary')
+                    .select('avg_match_rating, avg_training_rating, attendance_match_pct, attendance_training_pct')
+                    .eq('user_id', user.id),
+
+                // All played matches — for wins/draws/losses/goals against
+                supabase
+                    .from('match_days')
+                    .select('score_own, score_opp')
+                    .eq('user_id', user.id)
+                    .not('score_own', 'is', null)
+                    .not('score_opp', 'is', null),
+
+                // All training sessions — for type breakdown
+                supabase
+                    .from('training_sessions')
+                    .select('type')
+                    .eq('user_id', user.id),
+
+                // Players with position — for position group counts
+                supabase
+                    .from('players')
+                    .select('position')
+                    .eq('user_id', user.id),
+
+                // Upcoming matches (next events)
                 supabase
                     .from('match_days')
                     .select('id, date, opponent, home_away, score_own, score_opp')
@@ -38,7 +76,7 @@ export function useDashboard() {
                     .order('date', { ascending: true })
                     .limit(3),
 
-                // Upcoming training sessions
+                // Upcoming training sessions (next events)
                 supabase
                     .from('training_sessions')
                     .select('id, date, title, type, duration_min')
@@ -47,22 +85,24 @@ export function useDashboard() {
                     .order('date', { ascending: true })
                     .limit(3),
 
-                // Recent notes
+                // Recent notes — user_id filtered
                 supabase
                     .from('notes')
                     .select('id, content, created_at, players(id, name)')
+                    .eq('user_id', user.id)
                     .order('created_at', { ascending: false })
                     .limit(5),
 
-                // Active injuries
+                // Active injuries — user_id filtered
                 supabase
                     .from('injuries')
                     .select('id, description, expected_return, players(id, name)')
+                    .eq('user_id', user.id)
                     .eq('status', 'active')
                     .order('injury_date', { ascending: false })
                     .limit(5),
 
-                // Top scorers from view
+                // Top scorers
                 supabase
                     .from('top_scorers')
                     .select('player_id, name, position, number, goals, assists, goal_contributions')
@@ -71,19 +111,76 @@ export function useDashboard() {
                     .limit(5),
             ])
 
-            // summary � PGRST116 = no rows, not a real error
+            // PGRST116 = no rows, not a real error
             if (summaryRes.error && summaryRes.error.code !== 'PGRST116') throw summaryRes.error
-            setSummary(summaryRes.data ?? null)
 
-            // Merge matches + trainings into a unified next-events list, sorted by date
-            const matchEvents = (matchesRes.data ?? []).map(m => ({
+            // ── Team averages from player_stats_summary ──────────────────
+            // team_summary view does not contain attendance or training rating
+            const playerRows = playerStatsRes.data ?? []
+            function teamAvg(rows, key) {
+                const vals = rows.map(p => p[key]).filter(v => v != null)
+                if (!vals.length) return null
+                return Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10
+            }
+
+            // ── Match results breakdown ───────────────────────────────────
+            const playedMatches = allMatchesRes.data ?? []
+            const wins = playedMatches.filter(m => m.score_own > m.score_opp).length
+            const draws = playedMatches.filter(m => m.score_own === m.score_opp).length
+            const losses = playedMatches.filter(m => m.score_own < m.score_opp).length
+            const goalsFor = playedMatches.reduce((s, m) => s + (m.score_own ?? 0), 0)
+            const goalsAgainst = playedMatches.reduce((s, m) => s + (m.score_opp ?? 0), 0)
+
+            // ── Training type breakdown ───────────────────────────────────
+            const SESSION_TYPES = ['Technik', 'Taktik', 'Kondition', 'Spielform', 'Torschuss', 'Standards', 'Testspiel', 'Sonstiges']
+            const allSessions = allTrainingsRes.data ?? []
+            const trainingByType = SESSION_TYPES.reduce((acc, t) => {
+                acc[t] = allSessions.filter(s => s.type === t).length
+                return acc
+            }, {})
+
+            // ── Player position groups ────────────────────────────────────
+            const DEFENSE_POS = ['Torwart', 'Innenverteidiger', 'Außenverteidiger']
+            const MIDFIELD_POS = ['Defensives Mittelfeld', 'Zentrales Mittelfeld', 'Offensives Mittelfeld']
+            const OFFENSE_POS = ['Linksaußen', 'Rechtsaußen', 'Stürmer']
+            const allPlayers = playerPositionsRes.data ?? []
+            const defenseCount = allPlayers.filter(p => DEFENSE_POS.includes(p.position)).length
+            const midfieldCount = allPlayers.filter(p => MIDFIELD_POS.includes(p.position)).length
+            const offenseCount = allPlayers.filter(p => OFFENSE_POS.includes(p.position)).length
+
+            // ── Compose enriched summary ──────────────────────────────────
+            const derivedSummary = summaryRes.data ? {
+                ...summaryRes.data,
+                // Match breakdown
+                wins, draws, losses,
+                goals_for: goalsFor,
+                goals_against: goalsAgainst,
+                // Training type counts
+                training_by_type: trainingByType,
+                // Player position groups
+                defense_count: defenseCount,
+                midfield_count: midfieldCount,
+                offense_count: offenseCount,
+                // Team averages not in team_summary view
+                avg_training_rating: teamAvg(playerRows, 'avg_training_rating'),
+                avg_attendance_match_pct: teamAvg(playerRows, 'attendance_match_pct'),
+                avg_attendance_training_pct: teamAvg(playerRows, 'attendance_training_pct'),
+            } : null
+
+            setSummary(derivedSummary)
+
+            // ── Next events — merge matches + trainings ───────────────────
+            // DB stores 'Heim'/'Auswärts'/'Neutral', not 'home'/'away'
+            const matchEvents = (upcomingMatchesRes.data ?? []).map(m => ({
                 id: m.id,
                 type: 'match',
                 date: m.date,
                 title: m.opponent ?? 'Spiel',
-                detail: m.home_away === 'home' ? 'Heimspiel' : m.home_away === 'away' ? 'Ausw�rtsspiel' : null,
+                detail: m.home_away === 'Heim' ? 'Heimspiel'
+                    : m.home_away === 'Auswärts' ? 'Auswärtsspiel'
+                        : m.home_away ?? null,
             }))
-            const trainingEvents = (trainingsRes.data ?? []).map(t => ({
+            const trainingEvents = (upcomingTrainingsRes.data ?? []).map(t => ({
                 id: t.id,
                 type: 'training',
                 date: t.date,
