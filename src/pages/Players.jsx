@@ -177,7 +177,7 @@ function PlayerCard({ player: p, index, canEdit, onEdit, onDelete }) {
             {/* Action buttons — appear on hover */}
             {canEdit && (
                 <div
-                    className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="hidden md:flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={e => e.stopPropagation()}
                 >
                     <button
@@ -205,7 +205,7 @@ function PlayerCard({ player: p, index, canEdit, onEdit, onDelete }) {
                 </span>
             )}
             {canEdit && (
-                <span className="material-symbols-outlined icon-sm text-md-outline/30 shrink-0 group-hover:opacity-0 transition-opacity">
+                <span className="material-symbols-outlined icon-sm text-md-outline/30 shrink-0 md:group-hover:opacity-0 transition-opacity">
                     chevron_right
                 </span>
             )}

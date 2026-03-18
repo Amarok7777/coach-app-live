@@ -30,6 +30,8 @@ export function useDashboard() {
                 upcomingMatchesRes,
                 upcomingTrainingsRes,
                 notesRes,
+                matchNotesRes,
+                trainingNotesRes,
                 injuriesRes,
                 scorersRes,
             ] = await Promise.all([
@@ -85,13 +87,31 @@ export function useDashboard() {
                     .order('date', { ascending: true })
                     .limit(3),
 
-                // Recent notes — user_id filtered
+                // Manual notes (notes table) — no user_id filter, RLS handles scope
+                // usePlayerProfile inserts without user_id so eq filter would exclude them
                 supabase
                     .from('notes')
-                    .select('id, content, created_at, players(id, name)')
-                    .eq('user_id', user.id)
+                    .select('id, content, created_at, player_id, players!notes_player_id_fkey(id, name)')
                     .order('created_at', { ascending: false })
-                    .limit(5),
+                    .limit(20),
+
+                // Match attendance notes — rows with a non-empty note field
+                supabase
+                    .from('match_attendance')
+                    .select('id, note, updated_at, player_id, players!match_attendance_player_id_fkey(id, name), match_days!match_attendance_match_id_fkey(date, opponent)')
+                    .not('note', 'is', null)
+                    .neq('note', '')
+                    .order('updated_at', { ascending: false })
+                    .limit(20),
+
+                // Training attendance notes — rows with a non-empty note field
+                supabase
+                    .from('training_attendance')
+                    .select('id, note, updated_at, player_id, players!training_attendance_player_id_fkey(id, name), training_sessions!training_attendance_session_id_fkey(date, title, type)')
+                    .not('note', 'is', null)
+                    .neq('note', '')
+                    .order('updated_at', { ascending: false })
+                    .limit(20),
 
                 // Active injuries — user_id filtered
                 supabase
@@ -192,7 +212,43 @@ export function useDashboard() {
                 .slice(0, 5)
             setNextEvents(merged)
 
-            setRecentNotes(notesRes.data ?? [])
+            // ── Merge all three note sources, sort by date, take 5 ────────
+            const manualNotes = (notesRes.data ?? []).map(n => ({
+                key: `manual-${n.id}`,
+                playerName: n.players?.name ?? null,
+                content: n.content,
+                date: n.created_at,
+                source: 'manual',
+            }))
+
+            const matchNotes = (matchNotesRes.data ?? [])
+                .filter(n => n.note?.trim())
+                .map(n => ({
+                    key: `match-${n.id}`,
+                    playerName: n.players?.name ?? null,
+                    content: n.note,
+                    date: n.updated_at,
+                    source: 'match',
+                    context: n.match_days?.opponent ?? 'Spiel',
+                }))
+
+            const trainingNotes = (trainingNotesRes.data ?? [])
+                .filter(n => n.note?.trim())
+                .map(n => ({
+                    key: `training-${n.id}`,
+                    playerName: n.players?.name ?? null,
+                    content: n.note,
+                    date: n.updated_at,
+                    source: 'training',
+                    context: n.training_sessions?.title || n.training_sessions?.type || 'Training',
+                }))
+
+            const allNotesMerged = [...manualNotes, ...matchNotes, ...trainingNotes]
+                .filter(n => n.playerName)  // only show if player resolved
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .slice(0, 5)
+
+            setRecentNotes(allNotesMerged)
             setActiveInjuries(injuriesRes.data ?? [])
             setTopScorers(scorersRes.data ?? [])
         } catch (e) {

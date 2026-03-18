@@ -203,11 +203,14 @@ function ratingColor(rating) {
     return { bg: '#dc2626', text: 'white' }
 }
 
-function PitchSlot({ slot, player, availType, selected, onTap, onRemove, adjustment, onAdjust }) {
+function PitchSlot({ slot, player, availType, selected, onTap, onRemove, adjustment, onAdjust, small = false }) {
     const avail = availType ? AVAIL_STYLE[availType] : null
     const rating = player?.avg_match_rating ?? null
     const rc = ratingColor(rating)
     const isEmpty = !player
+    const sz = small ? 36 : 52   // SVG size
+    const cx = sz / 2            // circle centre
+    const r = cx - 2            // circle radius
 
     return (
         <div
@@ -219,18 +222,18 @@ function PitchSlot({ slot, player, availType, selected, onTap, onRemove, adjustm
         >
             {isEmpty ? (
                 /* ── Empty slot ── */
-                <div className={`
-          w-12 h-12 rounded-full border-2 border-dashed
-          flex items-center justify-center
-          transition-all duration-150 select-none
-          ${selected
-                        ? 'bg-white/40 border-white scale-110 shadow-xl ring-4 ring-white/30 animate-pulse'
-                        : 'bg-white/10 border-white/40 hover:bg-white/25 hover:border-white/70'
-                    }
-        `}>
+                <div
+                    className={`rounded-full border-2 border-dashed flex items-center justify-center
+                    transition-all duration-150 select-none
+                    ${selected
+                            ? 'bg-white/40 border-white scale-110 shadow-xl ring-4 ring-white/30 animate-pulse'
+                            : 'bg-white/10 border-white/40 hover:bg-white/25 hover:border-white/70'
+                        }`}
+                    style={{ width: sz, height: sz }}
+                >
                     <span
                         className="text-white/60 font-bold select-none"
-                        style={{ fontSize: 9, fontFamily: "'DM Mono', monospace" }}
+                        style={{ fontSize: small ? 7 : 9, fontFamily: "'DM Mono', monospace" }}
                     >
                         {slot.label}
                     </span>
@@ -243,22 +246,22 @@ function PitchSlot({ slot, player, availType, selected, onTap, onRemove, adjustm
         `}>
                     {/* SVG avatar circle */}
                     <svg
-                        width="52" height="52"
-                        viewBox="0 0 52 52"
+                        width={sz} height={sz}
+                        viewBox={`0 0 ${sz} ${sz}`}
                         style={{ display: 'block', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.55))' }}
                     >
                         <defs>
                             <clipPath id={`clip-${slot.id}`}>
-                                <circle cx="26" cy="26" r="24" />
+                                <circle cx={cx} cy={cx} r={r} />
                             </clipPath>
                         </defs>
 
                         {/* White background */}
-                        <circle cx="26" cy="26" r="24" fill="rgba(255,255,255,0.96)" />
+                        <circle cx={cx} cy={cx} r={r} fill="rgba(255,255,255,0.96)" />
 
                         {/* Bottom rating / availability band */}
                         <rect
-                            x="2" y="35" width="48" height="15"
+                            x={2} y={cx + r * 0.35} width={sz - 4} height={r * 0.65}
                             clipPath={`url(#clip-${slot.id})`}
                             fill={
                                 avail
@@ -271,7 +274,7 @@ function PitchSlot({ slot, player, availType, selected, onTap, onRemove, adjustm
 
                         {/* Selection / availability ring */}
                         <circle
-                            cx="26" cy="26" r="24"
+                            cx={cx} cy={cx} r={r}
                             fill="none"
                             strokeWidth="2.5"
                             stroke={
@@ -285,12 +288,12 @@ function PitchSlot({ slot, player, availType, selected, onTap, onRemove, adjustm
 
                         {/* Initials */}
                         <text
-                            x="26" y="28"
+                            x={cx} y={cx - r * 0.08}
                             textAnchor="middle"
                             dominantBaseline="middle"
                             style={{
                                 fontFamily: "'DM Sans', system-ui, sans-serif",
-                                fontSize: 15,
+                                fontSize: small ? 10 : 15,
                                 fontWeight: 900,
                                 fill: '#161d1c',
                             }}
@@ -300,12 +303,12 @@ function PitchSlot({ slot, player, availType, selected, onTap, onRemove, adjustm
 
                         {/* Rating / label text in band */}
                         <text
-                            x="26" y="44"
+                            x={cx} y={cx + r * 0.72}
                             textAnchor="middle"
                             dominantBaseline="middle"
                             style={{
                                 fontFamily: "'DM Mono', monospace",
-                                fontSize: 9,
+                                fontSize: small ? 7 : 9,
                                 fontWeight: 900,
                                 fill: avail ? 'white' : rc ? rc.text : 'rgba(255,255,255,0.75)',
                             }}
@@ -405,7 +408,7 @@ function PitchSlot({ slot, player, availType, selected, onTap, onRemove, adjustm
                 </div>
             )}
 
-            {/* Remove × button */}
+            {/* Remove × button — always visible when slot is selected (touch), hover on desktop */}
             {player && onRemove && (
                 <button
                     onClick={e => { e.stopPropagation(); onRemove(slot.id) }}
@@ -416,7 +419,7 @@ function PitchSlot({ slot, player, availType, selected, onTap, onRemove, adjustm
                         background: '#ef4444', border: '2px solid white',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         zIndex: 30, cursor: 'pointer',
-                        opacity: 0, transition: 'opacity 0.15s',
+                        opacity: selected ? 1 : 0, transition: 'opacity 0.15s',
                     }}
                 >
                     <span className="material-symbols-outlined text-white" style={{ fontSize: 10, lineHeight: 1 }}>close</span>
@@ -661,6 +664,22 @@ export default function Lineup() {
     const [showShare, setShowShare] = useState(false)
     const [generatingToken, setGeneratingToken] = useState(false)
     const [copied, setCopied] = useState(false)
+    const pitchRef = useRef(null)
+    const [pitchWidth, setPitchWidth] = useState(window.innerWidth)
+
+    useEffect(() => {
+        const el = pitchRef.current
+        if (!el) return
+        // Measure immediately on mount
+        setPitchWidth(el.getBoundingClientRect().width)
+        const ro = new ResizeObserver(entries => {
+            setPitchWidth(entries[0].contentRect.width)
+        })
+        ro.observe(el)
+        return () => ro.disconnect()
+    }, [])
+
+    const smallSlots = pitchWidth < 500
 
     // ── Sync plan → local state ───────────────────────────────
     useEffect(() => {
@@ -923,6 +942,18 @@ export default function Lineup() {
                     <button onClick={() => createPlan()} className="btn-outlined py-2 px-3 text-xs">
                         <span className="material-symbols-outlined icon-sm">add</span>Neu
                     </button>
+                    {plan && plans.length > 1 && (
+                        <button
+                            onClick={async () => {
+                                if (!confirm(`Aufstellung „${plan.name}" wirklich löschen?`)) return
+                                await deletePlan(plan.id)
+                            }}
+                            className="btn-icon w-9 h-9 hover:bg-red-50 hover:text-red-600"
+                            title="Aufstellung löschen"
+                        >
+                            <span className="material-symbols-outlined icon-sm">delete</span>
+                        </button>
+                    )}
                     <button onClick={() => setShowShare(true)} className="btn-tonal py-2 px-3 text-xs">
                         <span className="material-symbols-outlined icon-sm">share</span>Teilen
                     </button>
@@ -1009,6 +1040,7 @@ export default function Lineup() {
                 {/* ── PITCH ── */}
                 <div className="flex-1 min-w-0">
                     <div
+                        ref={pitchRef}
                         className="relative rounded-2xl overflow-hidden w-full select-none"
                         style={{
                             background: `repeating-linear-gradient(
@@ -1077,19 +1109,27 @@ export default function Lineup() {
                             <path d="M 92.5 5   A 2.5 2.5 0 0 0 95   7.5" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="0.5" />
                             <path d="M 5   142.5 A 2.5 2.5 0 0 1 7.5  145" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="0.5" />
                             <path d="M 95  142.5 A 2.5 2.5 0 0 0 92.5 145" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="0.5" />
+
+                            {/* Direction labels — fixed in SVG coordinate space */}
+                            <text x="50" y="10"
+                                textAnchor="middle"
+                                style={{
+                                    fontFamily: 'system-ui,sans-serif', fontSize: 3.5, fontWeight: 700,
+                                    fill: 'rgba(255,255,255,0.35)', letterSpacing: 0.8, textTransform: 'uppercase'
+                                }}>
+                                Angriff
+                            </text>
+                            <text x="50" y="143"
+                                textAnchor="middle"
+                                style={{
+                                    fontFamily: 'system-ui,sans-serif', fontSize: 3.5, fontWeight: 700,
+                                    fill: 'rgba(255,255,255,0.35)', letterSpacing: 0.8, textTransform: 'uppercase'
+                                }}>
+                                Tor
+                            </text>
                         </svg>
 
-                        {/* Direction labels */}
-                        <div className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none">
-                            <span className="text-white/35 font-bold uppercase tracking-widest" style={{ fontSize: 8 }}>
-                                Angriff ▲
-                            </span>
-                        </div>
-                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
-                            <span className="text-white/35 font-bold uppercase tracking-widest" style={{ fontSize: 8 }}>
-                                ▼ Tor
-                            </span>
-                        </div>
+
 
                         {/* Player slots */}
                         {slots.map(slot => {
@@ -1111,6 +1151,7 @@ export default function Lineup() {
                                     onRemove={handleRemoveFromSlot}
                                     adjustment={adjustments[slot.id] ?? null}
                                     onAdjust={persistAdjustment}
+                                    small={smallSlots}
                                 />
                             )
                         })}
@@ -1128,23 +1169,6 @@ export default function Lineup() {
                         selectedPlayer={selectedBenchPlayer}
                         onTap={handleBenchTap}
                     />
-
-                    {/* Legend */}
-                    <div className="card-outlined p-3">
-                        <p className="text-xs font-bold text-md-outline uppercase tracking-wider mb-2">Legende</p>
-                        {Object.entries(AVAIL_STYLE).map(([type, s]) => (
-                            <div key={type} className="flex items-center gap-2 text-xs text-md-on-surface-variant mb-1.5 last:mb-0">
-                                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.dot}`} />
-                                {s.label}
-                            </div>
-                        ))}
-                        <div className="border-t border-md-outline-variant/50 mt-2 pt-2 text-xs text-md-outline space-y-1">
-                            <p>1× Spieler → 1× Slot = platzieren</p>
-                            <p>Slot → Slot = tauschen</p>
-                            <p>▲ / ▼ = Position verschieben</p>
-                            <p>✕ = zurück auf Bank</p>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -1258,19 +1282,6 @@ function BenchArea({ players, allPlayers, assignedPlayerIds, availability, selec
                         {benchCount} verfügbar
                     </span>
                 </div>
-                <select
-                    value={sortBy}
-                    onChange={e => { e.stopPropagation(); setSortBy(e.target.value) }}
-                    onClick={e => e.stopPropagation()}
-                    className="text-xs bg-white/10 border border-white/20 rounded-lg px-2 py-1
-            text-white/70 focus:outline-none focus:border-white/50"
-                    style={{ fontSize: 10 }}
-                >
-                    <option value="number">Nr.</option>
-                    <option value="name">Name</option>
-                    <option value="position">Pos.</option>
-                    <option value="rating">Rating</option>
-                </select>
             </div>
 
             {/* Column headers */}

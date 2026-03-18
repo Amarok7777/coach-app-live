@@ -108,7 +108,7 @@ function MatchRow({ match: m, index, total, canEdit, onEdit, onDelete }) {
             {/* Action buttons — appear on hover, only for canEdit */}
             {canEdit && (
                 <div
-                    className="relative z-10 flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="relative z-10 hidden md:flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={e => e.stopPropagation()}
                 >
                     <button
@@ -137,7 +137,7 @@ function MatchRow({ match: m, index, total, canEdit, onEdit, onDelete }) {
             )}
             {canEdit && (
                 <span className="relative z-10 material-symbols-outlined icon-sm text-md-outline/30 shrink-0
-          group-hover:opacity-0 transition-opacity pointer-events-none">
+          md:group-hover:opacity-0 transition-opacity pointer-events-none">
                     chevron_right
                 </span>
             )}
@@ -191,8 +191,13 @@ export default function Matches() {
         </div>
     )
 
-    const upcoming = matches.filter(m => new Date(m.date) >= new Date(new Date().toDateString()))
-    const past = matches.filter(m => new Date(m.date) < new Date(new Date().toDateString()))
+    // A match belongs to "past" if its date has passed OR if a result has already
+    // been entered — so today's match shows in the Bilanz as soon as scores are saved.
+    const past = matches.filter(m =>
+        new Date(m.date) < new Date(new Date().toDateString()) ||
+        (m.score_own !== null && m.score_opp !== null)
+    )
+    const upcoming = matches.filter(m => !past.includes(m))
 
     // Win/draw/loss stats
     const played = past.filter(m => m.score_own !== null)

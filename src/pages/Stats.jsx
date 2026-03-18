@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useStats } from '../hooks/useStats'
 import Skeleton from '../components/Skeleton'
 import {
@@ -78,6 +78,184 @@ function Tile({ label, value, icon, sub }) {
                     {sub}
                 </p>
             )}
+        </div>
+    )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Mobile carousel for summary tiles
+// ─────────────────────────────────────────────────────────────
+function TilesCarousel({ tiles }) {
+    const [idx, setIdx] = useState(0)
+    const touchStartX = useRef(null)
+
+    // Inject fade animation once (same as Dashboard)
+    useEffect(() => {
+        if (typeof document !== 'undefined' && !document.getElementById('carousel-tile-style')) {
+            const s = document.createElement('style')
+            s.id = 'carousel-tile-style'
+            s.textContent = '@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }'
+            document.head.appendChild(s)
+        }
+    }, [])
+
+    function prev() { setIdx(i => (i - 1 + tiles.length) % tiles.length) }
+    function next() { setIdx(i => (i + 1) % tiles.length) }
+
+    function onTouchStart(e) { touchStartX.current = e.touches[0].clientX }
+    function onTouchEnd(e) {
+        if (touchStartX.current === null) return
+        const dx = e.changedTouches[0].clientX - touchStartX.current
+        if (dx < -40) next()
+        else if (dx > 40) prev()
+        touchStartX.current = null
+    }
+
+    const tile = tiles[idx]
+
+    return (
+        <div
+            className="relative bg-white rounded-2xl border border-md-outline-variant/60 p-4 overflow-hidden"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+        >
+            {/* Prev / Next buttons */}
+            <button onClick={prev}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center
+                    rounded-full bg-md-surface border border-md-outline-variant/60 text-md-outline
+                    hover:bg-md-primary/10 hover:text-md-primary transition-colors z-10">
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_left</span>
+            </button>
+            <button onClick={next}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center
+                    rounded-full bg-md-surface border border-md-outline-variant/60 text-md-outline
+                    hover:bg-md-primary/10 hover:text-md-primary transition-colors z-10">
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_right</span>
+            </button>
+
+            {/* Content — centered */}
+            <div key={idx} className="flex flex-col items-center py-2"
+                style={{ animation: 'fadeSlideIn 0.25s ease' }}>
+                <div className="w-9 h-9 rounded-xl bg-md-primary-container flex items-center justify-center mb-3">
+                    <span className="material-symbols-outlined text-md-primary" style={{ fontSize: 18 }}>{tile.icon}</span>
+                </div>
+                <p className="text-3xl font-black text-md-on-surface tabular-nums leading-none"
+                    style={{ fontFamily: "'DM Mono', monospace" }}>
+                    {tile.value ?? 0}
+                </p>
+                <p className="text-sm text-md-outline mt-1.5 font-medium">{tile.label}</p>
+                {tile.sub != null && (
+                    <p className="text-xs text-md-outline/60 mt-0.5 tabular-nums"
+                        style={{ fontFamily: "'DM Mono', monospace" }}>
+                        {tile.sub}
+                    </p>
+                )}
+            </div>
+
+            {/* Dots */}
+            <div className="flex justify-center mt-3" style={{ gap: 3 }}>
+                {tiles.map((_, i) => (
+                    <button
+                        key={i}
+                        onClick={() => setIdx(i)}
+                        style={{
+                            width: i === idx ? 6 : tiles.length > 5 ? 3 : 4,
+                            height: i === idx ? 4 : tiles.length > 5 ? 3 : 4,
+                            padding: 0,
+                            flexShrink: 0,
+                            borderRadius: 999,
+                            transition: 'all 0.2s',
+                            background: i === idx
+                                ? 'var(--md-primary, #006A60)'
+                                : 'rgba(120,130,140,0.35)',
+                            border: 'none',
+                        }}
+                    />
+                ))}
+            </div>
+        </div>
+    )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Mobile carousel for chart cards — single card with nav inside
+// slides: [{ title, content, empty }]
+// ─────────────────────────────────────────────────────────────
+function ChartsCarousel({ slides }) {
+    const [idx, setIdx] = useState(0)
+    const touchStartX = useRef(null)
+
+    function prev() { setIdx(i => (i - 1 + slides.length) % slides.length) }
+    function next() { setIdx(i => (i + 1) % slides.length) }
+
+    function onTouchStart(e) { touchStartX.current = e.touches[0].clientX }
+    function onTouchEnd(e) {
+        if (touchStartX.current === null) return
+        const dx = e.changedTouches[0].clientX - touchStartX.current
+        if (dx < -40) next()
+        else if (dx > 40) prev()
+        touchStartX.current = null
+    }
+
+    const slide = slides[idx]
+
+    return (
+        <div
+            className="bg-white rounded-2xl border border-md-outline-variant/60 p-5 flex flex-col"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+        >
+            {/* Header: title + prev/next inside the card */}
+            <div className="flex items-center justify-between mb-4 shrink-0">
+                <h3 className="text-sm font-bold text-md-on-surface"
+                    style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                    {slide.title}
+                </h3>
+                <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={prev}
+                        className="w-7 h-7 flex items-center justify-center rounded-full
+                            border border-md-outline-variant/60 text-md-outline
+                            hover:bg-md-primary/10 hover:text-md-primary transition-colors">
+                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_left</span>
+                    </button>
+                    <button onClick={next}
+                        className="w-7 h-7 flex items-center justify-center rounded-full
+                            border border-md-outline-variant/60 text-md-outline
+                            hover:bg-md-primary/10 hover:text-md-primary transition-colors">
+                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_right</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Chart content */}
+            <div key={idx} className="flex-1" style={{ animation: 'fadeSlideIn 0.25s ease' }}>
+                {slide.empty
+                    ? <div className="flex items-center justify-center text-sm text-md-outline min-h-[160px]">Keine Daten</div>
+                    : slide.content
+                }
+            </div>
+
+            {/* Dots — inside the card at the bottom */}
+            <div className="flex justify-center mt-4 shrink-0" style={{ gap: 4 }}>
+                {slides.map((_, i) => (
+                    <button
+                        key={i}
+                        onClick={() => setIdx(i)}
+                        style={{
+                            width: i === idx ? 16 : 6,
+                            height: 4,
+                            padding: 0,
+                            flexShrink: 0,
+                            borderRadius: 999,
+                            transition: 'all 0.25s',
+                            background: i === idx
+                                ? 'var(--md-primary, #006A60)'
+                                : 'rgba(120,130,140,0.3)',
+                            border: 'none',
+                        }}
+                    />
+                ))}
+            </div>
         </div>
     )
 }
@@ -282,14 +460,240 @@ export default function Stats() {
             </div>
 
             {/* ── Team summary tiles ──
-                Mobile: 2 cols → Tablet: 4 cols → Desktop: 8 cols (all in one row) */}
+                Mobile: carousel → Tablet: 4 cols → Desktop: 8 cols (all in one row) */}
             {teamSummary && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3 mb-6">
-                    {tiles.map(s => (
-                        <Tile key={s.label} label={s.label} value={s.value} icon={s.icon} sub={s.sub} />
-                    ))}
-                </div>
+                <>
+                    {/* Mobile carousel */}
+                    <div className="sm:hidden mb-4">
+                        <TilesCarousel tiles={tiles} />
+                    </div>
+                    {/* Tablet+ grid */}
+                    <div className="hidden sm:grid sm:grid-cols-4 xl:grid-cols-8 gap-3 mb-6">
+                        {tiles.map(s => (
+                            <Tile key={s.label} label={s.label} value={s.value} icon={s.icon} sub={s.sub} />
+                        ))}
+                    </div>
+                </>
             )}
+
+            {/* ── Charts ──
+                Mobile: carousel (1 visible) → Tablet: 2 cols → Desktop: 3 cols */}
+            {/* Mobile: single carousel card */}
+            <div className="sm:hidden mb-4">
+                <ChartsCarousel slides={[
+                    {
+                        title: 'Top-Torschützen',
+                        empty: topGoals.length === 0,
+                        content: (
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={topGoals} layout="vertical" margin={barMargin}>
+                                    <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                        axisLine={false} tickLine={false} allowDecimals={false}
+                                        tickCount={Math.min(6, Math.max(...topGoals.map(p => p.total_goals ?? 0)) + 1)} />
+                                    <YAxis type="category" dataKey="name"
+                                        tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                        width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                        axisLine={false} tickLine={false} />
+                                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,106,96,0.06)' }} />
+                                    <Bar dataKey="total_goals" name="Tore" fill="var(--md-primary)"
+                                        radius={[0, 6, 6, 0]} maxBarSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ),
+                    },
+                    {
+                        title: 'Top-Assistgeber',
+                        empty: topAssists.length === 0,
+                        content: (
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={topAssists} layout="vertical" margin={barMargin}>
+                                    <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                        axisLine={false} tickLine={false} allowDecimals={false}
+                                        tickCount={Math.min(6, Math.max(...topAssists.map(p => p.total_assists ?? 0)) + 1)} />
+                                    <YAxis type="category" dataKey="name"
+                                        tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                        width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                        axisLine={false} tickLine={false} />
+                                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(99,102,241,0.06)' }} />
+                                    <Bar dataKey="total_assists" name="Assists" fill="#6366f1"
+                                        radius={[0, 6, 6, 0]} maxBarSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ),
+                    },
+                    {
+                        title: 'Top-Scorer',
+                        empty: topScorers.length === 0,
+                        content: (
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={topScorers} layout="vertical" margin={barMargin}>
+                                    <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                        axisLine={false} tickLine={false} allowDecimals={false}
+                                        tickCount={Math.min(6, Math.max(...topScorers.map(p => p.goal_contributions ?? 0)) + 1)} />
+                                    <YAxis type="category" dataKey="name"
+                                        tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                        width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                        axisLine={false} tickLine={false} />
+                                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(245,158,11,0.06)' }} />
+                                    <Bar dataKey="goal_contributions" name="Torbeteiligungen" fill="#f59e0b"
+                                        radius={[0, 6, 6, 0]} maxBarSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ),
+                    },
+                    {
+                        title: 'Anwesenheit Training',
+                        empty: topAttendTraining.length === 0,
+                        content: (
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={topAttendTraining} layout="vertical" margin={barMargin}>
+                                    <XAxis type="number" domain={[0, 100]}
+                                        tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                        unit="%" axisLine={false} tickLine={false} allowDecimals={false} />
+                                    <YAxis type="category" dataKey="name"
+                                        tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                        width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                        axisLine={false} tickLine={false} />
+                                    <Tooltip content={<CustomTooltip unit="%" />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
+                                    <Bar dataKey="attendance_training_pct" name="Anwesenheit" fill="#10b981"
+                                        radius={[0, 6, 6, 0]} maxBarSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ),
+                    },
+                    {
+                        title: 'Anwesenheit Spiele',
+                        empty: topAttendMatch.length === 0,
+                        content: (
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={topAttendMatch} layout="vertical" margin={barMargin}>
+                                    <XAxis type="number" domain={[0, 100]}
+                                        tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                        unit="%" axisLine={false} tickLine={false} />
+                                    <YAxis type="category" dataKey="name"
+                                        tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                        width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                        axisLine={false} tickLine={false} />
+                                    <Tooltip content={<CustomTooltip unit="%" />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
+                                    <Bar dataKey="attendance_match_pct" name="Anwesenheit" fill="#10b981"
+                                        radius={[0, 6, 6, 0]} maxBarSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ),
+                    },
+                ]} />
+            </div>
+
+            {/* Tablet+: 2 carousels side by side */}
+            <div className="hidden sm:grid sm:grid-cols-2 gap-4 mb-6">
+                {/* Scorer carousel: Torschützen / Assistgeber / Scorer */}
+                <ChartsCarousel slides={[
+                    {
+                        title: 'Top-Torschützen',
+                        empty: topGoals.length === 0,
+                        content: (
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={topGoals} layout="vertical" margin={barMargin}>
+                                    <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                        axisLine={false} tickLine={false} allowDecimals={false}
+                                        tickCount={Math.min(6, Math.max(...topGoals.map(p => p.total_goals ?? 0)) + 1)} />
+                                    <YAxis type="category" dataKey="name"
+                                        tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                        width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                        axisLine={false} tickLine={false} />
+                                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,106,96,0.06)' }} />
+                                    <Bar dataKey="total_goals" name="Tore" fill="var(--md-primary)"
+                                        radius={[0, 6, 6, 0]} maxBarSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ),
+                    },
+                    {
+                        title: 'Top-Assistgeber',
+                        empty: topAssists.length === 0,
+                        content: (
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={topAssists} layout="vertical" margin={barMargin}>
+                                    <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                        axisLine={false} tickLine={false} allowDecimals={false}
+                                        tickCount={Math.min(6, Math.max(...topAssists.map(p => p.total_assists ?? 0)) + 1)} />
+                                    <YAxis type="category" dataKey="name"
+                                        tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                        width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                        axisLine={false} tickLine={false} />
+                                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(99,102,241,0.06)' }} />
+                                    <Bar dataKey="total_assists" name="Assists" fill="#6366f1"
+                                        radius={[0, 6, 6, 0]} maxBarSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ),
+                    },
+                    {
+                        title: 'Top-Scorer',
+                        empty: topScorers.length === 0,
+                        content: (
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={topScorers} layout="vertical" margin={barMargin}>
+                                    <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                        axisLine={false} tickLine={false} allowDecimals={false}
+                                        tickCount={Math.min(6, Math.max(...topScorers.map(p => p.goal_contributions ?? 0)) + 1)} />
+                                    <YAxis type="category" dataKey="name"
+                                        tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                        width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                        axisLine={false} tickLine={false} />
+                                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(245,158,11,0.06)' }} />
+                                    <Bar dataKey="goal_contributions" name="Torbeteiligungen" fill="#f59e0b"
+                                        radius={[0, 6, 6, 0]} maxBarSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ),
+                    },
+                ]} />
+
+                {/* Attendance carousel: Training / Spiele */}
+                <ChartsCarousel slides={[
+                    {
+                        title: 'Anwesenheit Training',
+                        empty: topAttendTraining.length === 0,
+                        content: (
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={topAttendTraining} layout="vertical" margin={barMargin}>
+                                    <XAxis type="number" domain={[0, 100]}
+                                        tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                        unit="%" axisLine={false} tickLine={false} allowDecimals={false} />
+                                    <YAxis type="category" dataKey="name"
+                                        tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                        width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                        axisLine={false} tickLine={false} />
+                                    <Tooltip content={<CustomTooltip unit="%" />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
+                                    <Bar dataKey="attendance_training_pct" name="Anwesenheit" fill="#10b981"
+                                        radius={[0, 6, 6, 0]} maxBarSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ),
+                    },
+                    {
+                        title: 'Anwesenheit Spiele',
+                        empty: topAttendMatch.length === 0,
+                        content: (
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={topAttendMatch} layout="vertical" margin={barMargin}>
+                                    <XAxis type="number" domain={[0, 100]}
+                                        tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
+                                        unit="%" axisLine={false} tickLine={false} />
+                                    <YAxis type="category" dataKey="name"
+                                        tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
+                                        width={60} tickFormatter={v => v.split(' ').at(-1)}
+                                        axisLine={false} tickLine={false} />
+                                    <Tooltip content={<CustomTooltip unit="%" />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
+                                    <Bar dataKey="attendance_match_pct" name="Anwesenheit" fill="#10b981"
+                                        radius={[0, 6, 6, 0]} maxBarSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ),
+                    },
+                ]} />
+            </div>
 
             {/* ── Filters ── */}
             <div className="flex gap-2 mb-5 flex-wrap">
@@ -317,109 +721,6 @@ export default function Stats() {
               focus:outline-none focus:border-md-primary"
                     />
                 </div>
-            </div>
-
-            {/* ── Charts ──
-                Mobile: 1 col → Tablet: 2 cols → Desktop: 3 cols  */}
-            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
-
-                {/* Top-Torschützen */}
-                <ChartCard title="Top-Torschützen" empty={topGoals.length === 0}>
-                    <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={topGoals} layout="vertical" margin={barMargin}>
-                            <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
-                                axisLine={false} tickLine={false} allowDecimals={false}
-                                tickCount={Math.min(6, Math.max(...topGoals.map(p => p.total_goals ?? 0)) + 1)} />
-                            <YAxis type="category" dataKey="name"
-                                tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
-                                width={60} tickFormatter={v => v.split(' ').at(-1)}
-                                axisLine={false} tickLine={false} />
-                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,106,96,0.06)' }} />
-                            <Bar dataKey="total_goals" name="Tore" fill="var(--md-primary)"
-                                radius={[0, 6, 6, 0]} maxBarSize={20} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartCard>
-
-                {/* Top-Assistgeber */}
-                <ChartCard title="Top-Assistgeber" empty={topAssists.length === 0}>
-                    <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={topAssists} layout="vertical" margin={barMargin}>
-                            <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
-                                axisLine={false} tickLine={false} allowDecimals={false}
-                                tickCount={Math.min(6, Math.max(...topAssists.map(p => p.total_assists ?? 0)) + 1)} />
-                            <YAxis type="category" dataKey="name"
-                                tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
-                                width={60} tickFormatter={v => v.split(' ').at(-1)}
-                                axisLine={false} tickLine={false} />
-                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(99,102,241,0.06)' }} />
-                            <Bar dataKey="total_assists" name="Assists" fill="#6366f1"
-                                radius={[0, 6, 6, 0]} maxBarSize={20} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartCard>
-
-                {/* Top-Scorer (Tore + Assists) */}
-                <ChartCard
-                    title={<>Top-Scorer <span className="ml-1.5 text-xs font-normal text-md-outline">Tore + Assists</span></>}
-                    empty={topScorers.length === 0}
-                >
-                    <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={topScorers} layout="vertical" margin={barMargin}>
-                            <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
-                                axisLine={false} tickLine={false} allowDecimals={false}
-                                tickCount={Math.min(6, Math.max(...topScorers.map(p => p.goal_contributions ?? 0)) + 1)} />
-                            <YAxis type="category" dataKey="name"
-                                tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
-                                width={60} tickFormatter={v => v.split(' ').at(-1)}
-                                axisLine={false} tickLine={false} />
-                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(245,158,11,0.06)' }} />
-                            <Bar dataKey="goal_contributions" name="Torbeteiligungen" fill="#f59e0b"
-                                radius={[0, 6, 6, 0]} maxBarSize={20} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartCard>
-
-                {/* Anwesenheit Training */}
-                <ChartCard title="Anwesenheit Training" empty={topAttendTraining.length === 0}>
-                    <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={topAttendTraining} layout="vertical" margin={barMargin}>
-                            <XAxis type="number" domain={[0, 100]}
-                                tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
-                                unit="%" axisLine={false} tickLine={false} allowDecimals={false} />
-                            <YAxis type="category" dataKey="name"
-                                tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
-                                width={60} tickFormatter={v => v.split(' ').at(-1)}
-                                axisLine={false} tickLine={false} />
-                            <Tooltip content={<CustomTooltip unit="%" />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
-                            <Bar dataKey="attendance_training_pct" name="Anwesenheit" fill="#10b981"
-                                radius={[0, 6, 6, 0]} maxBarSize={20} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartCard>
-
-                {/* Anwesenheit Spiele */}
-                <ChartCard title="Anwesenheit Spiele" empty={topAttendMatch.length === 0}>
-                    <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={topAttendMatch} layout="vertical" margin={barMargin}>
-                            <XAxis
-                                type="number" domain={[0, 100]}
-                                tick={{ fontSize: 11, fill: 'var(--md-outline)' }}
-                                unit="%" axisLine={false} tickLine={false}
-                            />
-                            <YAxis
-                                type="category" dataKey="name"
-                                tick={{ fontSize: 10, fill: 'var(--md-on-surface)' }}
-                                width={60} tickFormatter={v => v.split(' ').at(-1)}
-                                axisLine={false} tickLine={false}
-                            />
-                            <Tooltip content={<CustomTooltip unit="%" />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
-                            <Bar dataKey="attendance_match_pct" name="Anwesenheit" fill="#10b981"
-                                radius={[0, 6, 6, 0]} maxBarSize={20} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartCard>
-
             </div>
 
             {/* ── Player table ── */}
@@ -458,36 +759,36 @@ export default function Stats() {
                                 <Th
                                     col="name"
                                     sortCol={sortCol} sortDir={sortDir} onSort={handleSort}
-                                    className="text-left px-5"
+                                    className="text-left px-3 sm:px-5"
                                 >
                                     Spieler
                                 </Th>
 
                                 {/* ── Spiele ── */}
                                 {colGroup === 'spiele' && <>
-                                    <Th col="matches_played" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Sp.</Th>
-                                    <Th col="match_minutes" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Min.</Th>
-                                    <Th col="total_goals" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3 text-md-primary">Tore</Th>
-                                    <Th col="total_assists" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Ass.</Th>
-                                    <Th col="clean_sheets" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-4">Z.N.</Th>
+                                    <Th col="matches_played" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-2 sm:px-3">Sp.</Th>
+                                    <Th col="match_minutes" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-2 sm:px-3">Min.</Th>
+                                    <Th col="total_goals" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-2 sm:px-3 text-md-primary"><span className="sm:hidden">T</span><span className="hidden sm:inline">Tore</span></Th>
+                                    <Th col="total_assists" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-2 sm:px-3"><span className="sm:hidden">A</span><span className="hidden sm:inline">Ass.</span></Th>
+                                    <Th col="clean_sheets" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-2 sm:px-4">Z.N.</Th>
                                 </>}
 
                                 {/* ── Training ── */}
                                 {colGroup === 'training' && <>
-                                    <Th col="trainings_attended" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Einh.</Th>
-                                    <Th col="training_minutes" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Min.</Th>
+                                    <Th col="trainings_attended" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-2 sm:px-3">Einh.</Th>
+                                    <Th col="training_minutes" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-2 sm:px-3">Min.</Th>
                                 </>}
 
                                 {/* ── Rating ── */}
                                 {colGroup === 'rating' && <>
-                                    <Th col="avg_match_rating" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Ø Spiel</Th>
-                                    <Th col="avg_training_rating" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-4">Ø Training</Th>
+                                    <Th col="avg_match_rating" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-2 sm:px-3"><span className="sm:hidden">Ø Sp.</span><span className="hidden sm:inline">Ø Spiel</span></Th>
+                                    <Th col="avg_training_rating" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-2 sm:px-4"><span className="sm:hidden">Ø Tr.</span><span className="hidden sm:inline">Ø Training</span></Th>
                                 </>}
 
                                 {/* ── Anwesenheit ── */}
                                 {colGroup === 'anwesen' && <>
-                                    <Th col="attendance_match_pct" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-3">Spiele</Th>
-                                    <Th col="attendance_training_pct" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-4">Training</Th>
+                                    <Th col="attendance_match_pct" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-2 sm:px-3"><span className="sm:hidden">Sp.</span><span className="hidden sm:inline">Spiele</span></Th>
+                                    <Th col="attendance_training_pct" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right px-2 sm:px-4"><span className="sm:hidden">Tr.</span><span className="hidden sm:inline">Training</span></Th>
                                 </>}
                             </tr>
                         </thead>
@@ -505,12 +806,13 @@ export default function Stats() {
                     ${i < sorted.length - 1 ? 'border-b border-md-outline-variant/50' : ''}`}
                                 >
                                     {/* Name + position */}
-                                    <td className="px-5 py-3">
+                                    <td className="px-3 sm:px-5 py-2 sm:py-3">
                                         <div
                                             className="font-semibold text-md-on-surface"
                                             style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
                                         >
-                                            {p.name}
+                                            <span className="sm:hidden">{p.name.split(' ').slice(0, -1).map(n => n[0] + '.').join(' ')} {p.name.split(' ').at(-1)}</span>
+                                            <span className="hidden sm:inline">{p.name}</span>
                                         </div>
                                         {p.position && (
                                             <div className="text-md-outline" style={{ fontSize: 10 }}>
@@ -521,23 +823,23 @@ export default function Stats() {
 
                                     {/* ── Spiele ── */}
                                     {colGroup === 'spiele' && <>
-                                        <td className="text-right px-3 py-3 tabular-nums text-md-on-surface"
+                                        <td className="text-right px-2 sm:px-3 py-2 sm:py-3 tabular-nums text-md-on-surface"
                                             style={{ fontFamily: "'DM Mono', monospace" }}>
                                             {fmt(p.matches_played)}
                                         </td>
-                                        <td className="text-right px-3 py-3 tabular-nums text-md-outline"
+                                        <td className="text-right px-2 sm:px-3 py-2 sm:py-3 tabular-nums text-md-outline"
                                             style={{ fontFamily: "'DM Mono', monospace" }}>
                                             {fmt(p.match_minutes)}
                                         </td>
-                                        <td className="text-right px-3 py-3 tabular-nums font-bold text-md-primary"
+                                        <td className="text-right px-2 sm:px-3 py-2 sm:py-3 tabular-nums font-bold text-md-primary"
                                             style={{ fontFamily: "'DM Mono', monospace" }}>
                                             {fmt(p.total_goals)}
                                         </td>
-                                        <td className="text-right px-3 py-3 tabular-nums text-md-on-surface"
+                                        <td className="text-right px-2 sm:px-3 py-2 sm:py-3 tabular-nums text-md-on-surface"
                                             style={{ fontFamily: "'DM Mono', monospace" }}>
                                             {fmt(p.total_assists)}
                                         </td>
-                                        <td className="text-right px-4 py-3 tabular-nums text-md-on-surface"
+                                        <td className="text-right px-2 sm:px-4 py-2 sm:py-3 tabular-nums text-md-on-surface"
                                             style={{ fontFamily: "'DM Mono', monospace" }}>
                                             {POS_SHORT[p.position] === 'TW' || p.clean_sheets > 0
                                                 ? fmt(p.clean_sheets)
@@ -548,11 +850,11 @@ export default function Stats() {
 
                                     {/* ── Training ── */}
                                     {colGroup === 'training' && <>
-                                        <td className="text-right px-3 py-3 tabular-nums text-md-on-surface"
+                                        <td className="text-right px-2 sm:px-3 py-2 sm:py-3 tabular-nums text-md-on-surface"
                                             style={{ fontFamily: "'DM Mono', monospace" }}>
                                             {fmt(p.trainings_attended)}
                                         </td>
-                                        <td className="text-right px-4 py-3 tabular-nums text-md-outline"
+                                        <td className="text-right px-2 sm:px-4 py-2 sm:py-3 tabular-nums text-md-outline"
                                             style={{ fontFamily: "'DM Mono', monospace" }}>
                                             {fmt(p.training_minutes)}
                                         </td>
@@ -560,7 +862,7 @@ export default function Stats() {
 
                                     {/* ── Rating ── */}
                                     {colGroup === 'rating' && <>
-                                        <td className="text-right px-3 py-3">
+                                        <td className="text-right px-2 sm:px-3 py-2 sm:py-3">
                                             {p.avg_match_rating != null ? (
                                                 <span
                                                     className={`font-bold tabular-nums ${ratingColor(p.avg_match_rating)}`}
@@ -570,7 +872,7 @@ export default function Stats() {
                                                 </span>
                                             ) : <span className="text-md-outline">–</span>}
                                         </td>
-                                        <td className="text-right px-4 py-3">
+                                        <td className="text-right px-2 sm:px-4 py-2 sm:py-3">
                                             {p.avg_training_rating != null ? (
                                                 <span
                                                     className={`font-bold tabular-nums ${ratingColor(p.avg_training_rating)}`}
@@ -584,7 +886,7 @@ export default function Stats() {
 
                                     {/* ── Anwesenheit ── */}
                                     {colGroup === 'anwesen' && <>
-                                        <td className="text-right px-3 py-3">
+                                        <td className="text-right px-2 sm:px-3 py-2 sm:py-3">
                                             {p.attendance_match_pct != null ? (
                                                 <span
                                                     className={`font-bold tabular-nums ${attendColor(p.attendance_match_pct)}`}
@@ -594,7 +896,7 @@ export default function Stats() {
                                                 </span>
                                             ) : <span className="text-md-outline">–</span>}
                                         </td>
-                                        <td className="text-right px-4 py-3">
+                                        <td className="text-right px-2 sm:px-4 py-2 sm:py-3">
                                             {p.attendance_training_pct != null ? (
                                                 <span
                                                     className={`font-bold tabular-nums ${attendColor(p.attendance_training_pct)}`}
@@ -609,16 +911,6 @@ export default function Stats() {
                             ))}
                         </tbody>
                     </table>
-                </div>
-
-                {/* ── Zu Null note ── */}
-                <div className="px-5 py-3 border-t border-md-outline-variant/40 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-md-outline" style={{ fontSize: 13 }}>info</span>
-                    <p className="text-xs text-md-outline">
-                        <span className="font-semibold">Z.N.</span> = Zu Null ·
-                        Wird über das Feld <code className="bg-md-surface px-1 py-0.5 rounded text-xs">clean_sheet</code> pro Spiel erfasst ·
-                        Nur für Torwarte hervorgehoben
-                    </p>
                 </div>
             </div>
         </div>
