@@ -322,27 +322,49 @@ export default function Dashboard() {
                 >
                     <ul>
                         {recentNotes.map((note, i) => {
-                            const initial = note.players?.name?.charAt(0)?.toUpperCase() ?? '?'
+                            // SourceFlair config — matches PlayerProfile exactly
+                            const flair = {
+                                manual: { bg: 'bg-md-primary/10', text: 'text-md-primary', icon: 'sticky_note_2' },
+                                match: { bg: 'bg-red-50', text: 'text-red-700', icon: 'sports_soccer' },
+                                training: { bg: 'bg-green-50', text: 'text-green-700', icon: 'fitness_center' },
+                            }[note.source] ?? { bg: 'bg-gray-50', text: 'text-gray-600', icon: 'note' }
+
+                            const leftIconColor = note.source === 'match' ? 'text-red-400'
+                                : note.source === 'training' ? 'text-green-500'
+                                    : 'text-md-outline'
+
                             return (
-                                <li key={note.id}
-                                    className={`flex items-center gap-3 px-4 py-3 ${i < recentNotes.length - 1 ? 'border-b border-md-outline-variant/50' : ''}`}>
-                                    {/* Avatar */}
-                                    <div className="w-8 h-8 rounded-xl bg-md-secondary-container border border-md-secondary-container
-                    flex items-center justify-center shrink-0 font-bold text-xs text-md-on-primary-container"
-                                        style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-                                        {initial}
-                                    </div>
+                                <li key={note.key}
+                                    className={`flex items-start gap-3 px-4 py-3
+                                        ${i < recentNotes.length - 1 ? 'border-b border-md-outline-variant/50' : ''}
+                                        ${note.source !== 'manual' ? 'bg-md-surface/40' : ''}`}>
+
+                                    {/* Left source icon — same as PlayerProfile */}
+                                    <span className={`material-symbols-outlined mt-0.5 shrink-0 ${leftIconColor}`}
+                                        style={{ fontSize: 15 }}>
+                                        {flair.icon}
+                                    </span>
+
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-md-on-surface"
-                                            style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-                                            {note.players?.name}
-                                        </p>
-                                        <p className="text-xs text-md-outline truncate">{note.content}</p>
+                                        {/* Flair pill + date — same row as PlayerProfile */}
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-lg shrink-0 ${flair.bg} ${flair.text}`}>
+                                                <span className="material-symbols-outlined" style={{ fontSize: 11 }}>{flair.icon}</span>
+                                                {note.source === 'manual' ? note.playerName
+                                                    : note.context ?? note.playerName}
+                                            </span>
+                                            {note.source !== 'manual' && (
+                                                <span className="text-xs text-md-outline">
+                                                    {note.playerName}
+                                                </span>
+                                            )}
+                                            <span className="text-xs text-md-outline/60 ml-auto tabular-nums shrink-0"
+                                                style={{ fontFamily: "'DM Mono', monospace" }}>
+                                                {new Date(note.date).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' })}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-md-on-surface">{note.content}</p>
                                     </div>
-                                    <p className="text-xs text-md-outline/60 shrink-0 tabular-nums"
-                                        style={{ fontFamily: "'DM Mono', monospace" }}>
-                                        {new Date(note.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' })}
-                                    </p>
                                 </li>
                             )
                         })}

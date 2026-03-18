@@ -91,7 +91,7 @@ function SessionRow({ session: s, index, total, canEdit, onEdit, onDelete }) {
             {/* Action buttons — appear on hover, only for canEdit */}
             {canEdit && (
                 <div
-                    className="relative z-10 flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="relative z-10 hidden md:flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={e => e.stopPropagation()}
                 >
                     <button
@@ -120,7 +120,7 @@ function SessionRow({ session: s, index, total, canEdit, onEdit, onDelete }) {
             )}
             {canEdit && (
                 <span className="relative z-10 material-symbols-outlined icon-sm text-md-outline/30 shrink-0
-          group-hover:opacity-0 transition-opacity pointer-events-none">
+          md:group-hover:opacity-0 transition-opacity pointer-events-none">
                     chevron_right
                 </span>
             )}
